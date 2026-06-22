@@ -533,35 +533,35 @@ body{background:var(--dark);color:var(--text);font-family:var(--B);min-height:10
   <div id="maisSheet">
     <div class="mais-handle"></div>
     <div class="mais-grid">
-      <button class="mais-item" onclick="closeMaisSheet();window.location.href='admin.html#mkt'">
+      <button class="mais-item" onclick="closeMaisSheet();window.location.href=CFG_ADMIN_URL+'#mkt'">
         <span class="mais-ico">📣</span>Marketing
       </button>
-      <button class="mais-item" onclick="closeMaisSheet();window.location.href='admin.html#cat'">
+      <button class="mais-item" onclick="closeMaisSheet();window.location.href=CFG_ADMIN_URL+'#cat'">
         <span class="mais-ico">🏷️</span>Categorias
       </button>
-      <button class="mais-item" onclick="closeMaisSheet();window.location.href='admin.html#clientes'">
+      <button class="mais-item" onclick="closeMaisSheet();window.location.href=CFG_ADMIN_URL+'#clientes'">
         <span class="mais-ico">👥</span>Clientes
       </button>
-      <button class="mais-item" onclick="closeMaisSheet();window.location.href='admin.html#op'">
+      <button class="mais-item" onclick="closeMaisSheet();window.location.href=CFG_ADMIN_URL+'#op'">
         <span class="mais-ico">👷</span>Operadores
       </button>
-      <button class="mais-item" onclick="closeMaisSheet();window.location.href='admin.html#doc'">
+      <button class="mais-item" onclick="closeMaisSheet();window.location.href=CFG_ADMIN_URL+'#doc'">
         <span class="mais-ico">📄</span>Docs
       </button>
-      <button class="mais-item" onclick="closeMaisSheet();window.location.href='admin.html#analytics'">
+      <button class="mais-item" onclick="closeMaisSheet();window.location.href=CFG_ADMIN_URL+'#analytics'">
         <span class="mais-ico">📊</span>Analytics
       </button>
-      <button class="mais-item" onclick="closeMaisSheet();window.location.href='admin.html#cupons'">
+      <button class="mais-item" onclick="closeMaisSheet();window.location.href=CFG_ADMIN_URL+'#cupons'">
         <span class="mais-ico">🎟️</span>Cupons
       </button>
     </div>
   </div>
 
   <nav class="bnav">
-    <button class="bni" id="bnav-home" onclick="window.location.href='admin.html'">
+    <button class="bni" id="bnav-home" onclick="window.location.href=CFG_ADMIN_URL">
       <div class="bico">🏠</div>Home
     </button>
-    <button class="bni" id="bnav-prod" onclick="window.location.href='admin.html#prod'">
+    <button class="bni" id="bnav-prod" onclick="window.location.href=CFG_ADMIN_URL+'#prod'">
       <div class="bico">📦</div>Produtos
     </button>
     <button class="bni on" id="bnav-pedidos" onclick="switchTab('pedidos',this)">
