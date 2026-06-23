@@ -1,9 +1,9 @@
-const CACHE = 'gjstore-adm-v1';
+const CACHE = 'gjstore-adm-v2';
 const SHELL = ['./admin.html', './gestao_unificada.html', './config.js', './manifest-admin.json'];
 
 self.addEventListener('install', e => {
   e.waitUntil(
-    caches.open(CACHE).then(c => c.addAll(SHELL))
+    caches.open(CACHE).then(c => c.addAll(SHELL)).catch(() => {})
   );
   self.skipWaiting();
 });
@@ -18,11 +18,30 @@ self.addEventListener('activate', e => {
 });
 
 self.addEventListener('fetch', e => {
-  const url = e.request.url;
+  const req = e.request;
+  const url = req.url;
+
+  // GAS API e Cloudinary: sempre rede (dados frescos)
   if (url.includes('script.google.com') || url.includes('cloudinary.com')) {
     return;
   }
+
+  // HTML + config.js: network-first (config.js carrega GAS_URL — nunca pode ficar velho em cache,
+  // senão aponta pro GAS antigo e quebra o painel no celular). HTML em cache-first congelava o admin.
+  const isHTML = req.mode === 'navigate' || (req.headers.get('accept') || '').includes('text/html');
+  if (isHTML || url.includes('config.js')) {
+    e.respondWith(
+      fetch(req).then(res => {
+        const copy = res.clone();
+        caches.open(CACHE).then(c => c.put(req, copy)).catch(() => {});
+        return res;
+      }).catch(() => caches.match(req).then(c => c || caches.match('./admin.html')))
+    );
+    return;
+  }
+
+  // Demais assets: cache-first, fallback rede
   e.respondWith(
-    caches.match(e.request).then(cached => cached || fetch(e.request))
+    caches.match(req).then(cached => cached || fetch(req))
   );
 });
