@@ -2231,7 +2231,7 @@ function npSearchCliente(q) {
         const n = _norm(c["Nome"]||c["nome"]||"");
         const t = String(c["WhatsApp"]||c["Telefone"]||c["telefone"]||"").replace(/\D/g,"");
         const e = _norm(c["Email"]||c["email"]||"");
-        return n.includes(qn) || t.includes(qn.replace(/\D/g,"")) || e.includes(qn);
+        const tq = qn.replace(/\D/g,""); return n.includes(qn) || (tq && t.includes(tq)) || e.includes(qn);
       }).slice(0, 10)
     : allClientes.slice().sort((a,b) => _norm(a["Nome"]||a["nome"]||"").localeCompare(_norm(b["Nome"]||b["nome"]||""))).slice(0, 10);
   if (!matches.length) {
