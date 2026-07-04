@@ -432,6 +432,17 @@
       margin-top: 1px
     }
 
+    /* E6.4: header mobile compacto — nome da loja organizado numa linha */
+    @media (max-width: 480px) {
+      header { padding: 0 10px; gap: 6px }
+      .hlogo { gap: 7px; min-width: 0; flex-shrink: 1 }
+      .hmark { width: 30px; height: 30px; font-size: 12px; flex-shrink: 0 }
+      .hname { font-size: 14px; white-space: nowrap }
+      .hsub { display: none }
+      .theme-sel { max-width: 84px; font-size: 11px }
+      .logoutbtn { padding: 6px 9px; font-size: 11px }
+    }
+
     .logoutbtn {
       background: rgba(244, 67, 54, .1);
       border: 1px solid rgba(244, 67, 54, .22);
@@ -2967,7 +2978,7 @@
   <div id="app">
     <header>
       <div class="hlogo">
-        <div class="hmark" style="font-size:10px;letter-spacing:0">GJ Store</div>
+        <div class="hmark">GJ</div>
         <div>
           <div class="hname">GJ Admin</div>
           <div class="hsub" id="hsubLabel">Painel de Controle</div>
@@ -10144,7 +10155,12 @@
       const msg = isIOS
         ? '📱 iOS:\n1. Toque em 🔗 (compartilhar) na barra do Safari\n2. "Adicionar à Tela de Início"\n3. Nome: GJ Admin → Adicionar'
         : '📱 Android:\n1. Toque em ⋮ (menu do Chrome)\n2. "Adicionar à tela inicial"\n3. Confirme → nome aparece como GJ Admin';
-      alert(msg);
+      // E6.3: modal próprio no lugar do alert nativo
+      const d = document.createElement('div');
+      d.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9999;display:flex;align-items:center;justify-content:center;padding:24px';
+      d.innerHTML = `<div style="background:var(--d2);border:1px solid var(--border);border-radius:14px;padding:18px;max-width:340px;font-size:13px;line-height:1.6;color:var(--t);white-space:pre-wrap">${msg}<button style="width:100%;margin-top:14px;background:rgba(0,230,118,.15);border:1px solid rgba(0,230,118,.3);color:var(--g);padding:10px;border-radius:9px;font-weight:800;cursor:pointer;font-family:var(--B)">Entendi</button></div>`;
+      d.querySelector('button').onclick = () => d.remove();
+      document.body.appendChild(d);
     }
     // Mostra botão ao carregar se nunca instalado (para caso de iOS ou prompt atrasado)
     if (!localStorage.getItem('adm_pwa_installed') && !window.matchMedia('(display-mode: standalone)').matches) {
