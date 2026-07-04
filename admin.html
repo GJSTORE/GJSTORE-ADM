@@ -3494,8 +3494,10 @@
           <button class="an-filter-btn" data-p="30" onclick="loadAnalytics('30')">30d</button>
           <button class="an-filter-btn" data-p="90" onclick="loadAnalytics('90')">90d</button>
           <button class="an-filter-btn" data-p="custom" onclick="toggleAnCustom()">📅</button>
+          <button class="an-filter-btn" onclick="diagAnalytics()" title="Verifica abas/colunas que alimentam os KPIs" style="border-color:rgba(0,230,118,.35);color:var(--g)">🩺 Diagnosticar</button>
         </div>
       </div>
+      <div id="anHealthBox" style="display:none;margin-bottom:10px;padding:10px 12px;border-radius:10px;font-size:12px;line-height:1.5"></div>
       <div id="anCustomRow" style="display:none;gap:8px;align-items:center;margin-bottom:8px;flex-wrap:wrap">
         <input class="fi" id="anDataIni" type="date" style="padding:5px 8px;font-size:12px;flex:1">
         <span style="color:var(--muted);font-size:12px">até</span>
@@ -9172,6 +9174,29 @@
     function toggleAnCustom() {
       const row = document.getElementById("anCustomRow");
       row.style.display = row.style.display === "flex" ? "none" : "flex";
+    }
+
+    // E2.3/E2.4: diagnóstico das fontes do analytics — acaba o "zerou e ninguém sabe por quê"
+    async function diagAnalytics() {
+      const box = document.getElementById("anHealthBox");
+      box.style.display = "block";
+      box.style.background = "rgba(255,255,255,.04)";
+      box.style.border = "1px solid var(--border)";
+      box.innerHTML = "🩺 Verificando abas e colunas que alimentam os KPIs…";
+      try {
+        const r = await apiGet("analyticsHealth");
+        if (r.ok) {
+          const linhas = Object.entries(r.linhas || {}).map(([a, n]) => `<b>${a}</b>: ${n} linha(s)`).join(" · ");
+          box.style.border = "1px solid rgba(0,230,118,.3)";
+          box.innerHTML = `✅ <b>Fontes de dados OK.</b> Se um KPI está zerado, é falta de tráfego no período — não é erro.<br>${linhas}`;
+        } else {
+          box.style.border = "1px solid rgba(244,67,54,.4)";
+          box.innerHTML = `⚠️ <b>Problema encontrado nas fontes:</b><br>• ` + (r.problemas || []).join("<br>• ");
+        }
+      } catch (e) {
+        box.style.border = "1px solid rgba(244,67,54,.4)";
+        box.innerHTML = "❌ Backend não respondeu: " + e.message;
+      }
     }
 
     async function loadAnalytics(periodo) {
