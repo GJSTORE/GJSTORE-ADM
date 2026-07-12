@@ -744,13 +744,15 @@ function startApp() {
 async function loadAll() {
   document.getElementById("guList").innerHTML = `<div style="padding:32px 0;text-align:center"><div class="spin"></div></div>`;
   try {
-    const [rPed, rFin, rCfg] = await Promise.all([
+    const [rPed, rFin, rCfg, rProds] = await Promise.all([
       apiGet("getPedidos"),
       apiGet("getFinanceiro"),
-      apiGet("getConfig").catch(() => ({}))
+      apiGet("getConfig").catch(() => ({})),
+      apiGet("getProdutos").catch(() => ({ produtos: [] }))
     ]);
     allPeds = (rPed.pedidos || []);
     allBaixas = (rFin.baixas || []);
+    allProds = (rProds.produtos || []);
     if (rCfg && rCfg.config) {
       const nome = rCfg.config["NOME_LOJA"] || rCfg.config["NOME_EMPRESA"] || rCfg.config["nome_loja"];
       if (nome) _storeName = nome;
@@ -847,7 +849,7 @@ function buildCard(p) {
   const isFin = status === "Finalizado";
   const isCan = status === "Cancelado";
   const next = { "Pendente": "Em andamento", "Em andamento": "Entregue", "Entregue": "Finalizado" }[status] || null;
-  const { totalPago, saldo, pct, quitado, pendentes } = calcSaldo(id, total);
+  const { totalPago, saldo, pct, quitado, pendentes, pagas } = calcSaldo(id, total);
   const temSaldo = !isFin && !isCan && !quitado && (totalPago > 0 || pendentes.length > 0);
   const isEntregueComSaldo = status === "Entregue" && !quitado;
   const age = ageDays(p);
@@ -878,6 +880,25 @@ function buildCard(p) {
     }
   }
 
+  // Product thumbnail from allProds
+  const prodThumb = (() => {
+    if (!allProds || !allProds.length || !itensRaw || itensRaw === "[]") return "";
+    try {
+      const arr = JSON.parse(itensRaw);
+      if (!Array.isArray(arr) || !arr.length) return "";
+      const i0 = arr[0];
+      const id0 = String(i0.id || "");
+      const n0 = String(i0.nome || i0.name || "").trim().toLowerCase();
+      const prod = (id0 && allProds.find(function(pr) { return String(pr["ID"] || "") === id0; }))
+        || allProds.find(function(pr) { return String(pr["Nome do Produto"] || "").trim().toLowerCase() === n0; });
+      return (prod && prod["Imagem 1 (URL)"]) ? prod["Imagem 1 (URL)"] : "";
+    } catch(e) { return ""; }
+  })();
+
+  // Parcelas status
+  const qtdParc = Number(p["Qtd_Parcelas"] || 0);
+  const parcelasInfo = qtdParc > 1 ? `${pagas.length}/${qtdParc} parc.` : "";
+
   const idE = id.replace(/'/g, "\\'");
   const tel = String(p["Telefone"] || "").replace(/\D/g, "");
   const nome = String(p["Nome Cliente"] || "").replace(/'/g, "\\'");
@@ -896,11 +917,21 @@ function buildCard(p) {
     ${isEntregueComSaldo ? `<div class="entregue-alert">📦 PRODUTO ENTREGUE — AGUARDANDO QUITAÇÃO · Saldo: ${fmt(saldo)}</div>` : ""}
 
     <div class="ped-bottom">
-      <span class="ped-total">${fmt(total)}</span>
-      ${temSaldo ? `<div class="ped-saldo-info">
-        <div class="pg-wrap"><div class="pg-fill" style="width:${pct}%"></div></div>
-        <span style="font-size:10px;color:#ffb74d">${pct}% · dev. ${fmt(saldo)}</span>
-      </div>` : (quitado && totalPago > 0 ? `<span style="font-size:10px;color:var(--g)">✅ Quitado</span>` : "")}
+      <div style="display:flex;align-items:center;gap:10px;flex:1;min-width:0">
+        ${prodThumb ? `<img src="${prodThumb}" style="width:40px;height:40px;object-fit:cover;border-radius:8px;border:1px solid rgba(255,255,255,.1);flex-shrink:0" onerror="this.style.display='none'">` : ""}
+        <div style="min-width:0;flex:1">
+          <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+            <span class="ped-total">${fmt(total)}</span>
+            ${parcelasInfo ? `<span style="font-size:10px;color:var(--muted);background:rgba(255,255,255,.06);padding:1px 6px;border-radius:10px">${parcelasInfo}</span>` : ""}
+          </div>
+          ${totalPago > 0 && !isFin && !isCan ? `<div style="font-size:10px;color:#8899aa;margin-top:2px">Pago: <span style="color:#81c784">${fmt(totalPago)}</span>${!quitado ? ` · Falta: <span style="color:#ffb74d">${fmt(saldo)}</span>` : " · <span style='color:var(--g)'>✅ Quitado</span>"}${temSaldo ? ` <span style="color:var(--muted)">(${pct}%)</span>` : ""}</div>` : ""}
+          ${quitado && totalPago > 0 && !isFin ? `<span style="font-size:10px;color:var(--g)">✅ Quitado</span>` : ""}
+        </div>
+      </div>
+      ${temSaldo ? `<div class="ped-saldo-info" style="margin-top:4px;width:100%">
+        <div class="pg-wrap" style="flex:1"><div class="pg-fill" style="width:${pct}%"></div></div>
+        <span style="font-size:10px;color:#ffb74d;white-space:nowrap">${pct}%</span>
+      </div>` : ""}
     </div>
 
     <div class="ped-btns">
@@ -1940,7 +1971,7 @@ async function showRecibo(pedId) {
   // ── Render ──
   document.getElementById("rcBtns").innerHTML = `
     <a href="${tel ? `https://wa.me/55${tel}?text=${wppMsg}` : `https://wa.me/?text=${wppMsg}`}" target="_blank" class="rc-btn rc-btn-wpp">💬 ${tel ? "WPP Cliente" : "Enviar WPP"}</a>
-    <button class="rc-btn rc-btn-img" id="rcImgBtn" onclick="gerarImagemRecibo()">📸 Salvar Imagem</button>
+    <button class="rc-btn rc-btn-img" id="rcImgBtn" onclick="gerarImagemRecibo()">📲 Enviar pelo WPP</button>
     <button class="rc-btn rc-btn-cls" onclick="document.getElementById('receiptModal').classList.remove('open')">✕ Fechar</button>`;
 
   document.getElementById("rcCard").innerHTML = `
@@ -2020,25 +2051,32 @@ async function gerarImagemRecibo() {
     const s = document.createElement("script");
     s.src = "https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js";
     document.head.appendChild(s);
-    await new Promise((res, rej) => { s.onload = res; s.onerror = rej; });
+    await new Promise(function(res, rej) { s.onload = res; s.onerror = rej; });
   }
   const btn = document.getElementById("rcImgBtn");
+  const origTxt = btn ? btn.textContent : "";
   if (btn) { btn.textContent = "⏳..."; btn.disabled = true; }
+  // Get WPP text from the sibling WPP button href
+  const wppBtn = document.querySelector("#rcBtns .rc-btn-wpp");
+  const wppHref = wppBtn ? wppBtn.href : "";
+  const wppTextMatch = wppHref ? wppHref.match(/[?&]text=([^&]*)/) : null;
+  const wppText = wppTextMatch ? decodeURIComponent(wppTextMatch[1]) : "";
   try {
     const canvas = await html2canvas(document.getElementById("rcCard"), { backgroundColor: "#04090f", scale: 2, useCORS: true });
-    canvas.toBlob(blob => {
+    canvas.toBlob(function(blob) {
       const file = new File([blob], "recibo-gj.png", { type: "image/png" });
       if (navigator.canShare && navigator.canShare({ files: [file] })) {
-        navigator.share({ files: [file], title: "Recibo GJ Store" }).catch(() => {});
+        navigator.share({ files: [file], text: wppText, title: "Recibo GJ Store" }).catch(function() {});
       } else {
         const a = document.createElement("a");
         a.href = URL.createObjectURL(blob);
         a.download = "recibo-gj.png";
         a.click();
+        if (wppHref) window.open(wppHref, "_blank");
       }
-    });
-  } catch (e) { toast("Erro ao gerar imagem", "err"); }
-  if (btn) { btn.textContent = "📸 Imagem"; btn.disabled = false; }
+    }, "image/png");
+  } catch(e) { toast("Erro ao gerar imagem", "err"); }
+  if (btn) { btn.textContent = origTxt; btn.disabled = false; }
 }
 
 // ── TABS ──────────────────────────────────────────────────────────

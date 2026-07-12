@@ -3021,6 +3021,8 @@
         <div class="scard-sm"><div class="sv" id="s6" style="color:var(--g)">—</div><div class="sl" id="sl6">📈 Conversão</div></div>
         <div class="scard-sm"><div class="sv" id="s7" style="color:var(--o)">—</div><div class="sl" id="sl7">📦 Pedidos</div></div>
         <div class="scard-sm"><div class="sv" id="s8" style="color:var(--g)">—</div><div class="sl" id="sl8">✅ Finalizados</div></div>
+        <div class="scard-sm"><div class="sv" id="s9" style="color:#00bcd4">—</div><div class="sl" id="sl9">💚 Lucro</div></div>
+        <div class="scard-sm"><div class="sv" id="s10" style="color:#7c4dff">—</div><div class="sl" id="sl10">📊 Margem</div></div>
       </div>
       <!-- Meta Mensal -->
       <div class="meta-bar-wrap" id="metaBarWrap">
@@ -3504,6 +3506,7 @@
         <input class="fi" id="anDataFim" type="date" style="padding:5px 8px;font-size:12px;flex:1">
         <button class="addbtn" style="font-size:12px;padding:5px 10px" onclick="loadAnalytics('custom')">Filtrar</button>
       </div>
+      <div id="analyticsErrBanner" style="display:none;background:rgba(244,67,54,.12);border:1px solid rgba(244,67,54,.3);color:#ef5350;padding:10px 14px;border-radius:10px;font-size:13px;margin-bottom:12px"></div>
       <div id="analyticsContent">
         <div class="empty" style="margin-top:40px">Acesse esta aba para carregar as métricas.</div>
       </div>
@@ -3697,6 +3700,7 @@
           <div class="fg"><label class="fl">Preço Promo (R$)</label><input class="fi" id="fpromo" type="number"
               step="0.01" placeholder="0,00"></div>
         </div>
+        <div class="fg"><label class="fl">Custo Unit. (R$)</label><input class="fi" id="fCustoUnit" type="number" step="0.01" min="0" placeholder="Custo de aquisição por unidade"></div>
         <div class="frow">
           <div class="fg"><label class="fl">Estoque *</label><input class="fi" id="festoque" type="number"
               placeholder="0"></div>
@@ -4619,6 +4623,8 @@
           const s6 = document.getElementById("s6"); if (s6) s6.textContent = rp.taxaConversao != null ? rp.taxaConversao + "%" : "—";
           const s7 = document.getElementById("s7"); if (s7) s7.textContent = rp.pedidosPeriodo ?? "—";
           const s8 = document.getElementById("s8"); if (s8) s8.textContent = rp.pedidosFinalizados ?? "—";
+          const s9 = document.getElementById("s9"); if (s9) s9.textContent = rp.lucroPeriodo != null ? fmt(rp.lucroPeriodo) : "—";
+          const s10 = document.getElementById("s10"); if (s10) s10.textContent = rp.margemPct != null ? rp.margemPct + "%" : "—";
           const el5 = document.getElementById("sl5"); if (el5) el5.textContent = "🎯 TM " + lbl;
           const el6 = document.getElementById("sl6"); if (el6) el6.textContent = "📈 Conv " + lbl;
           const el7 = document.getElementById("sl7"); if (el7) el7.textContent = "📦 Ped " + lbl;
@@ -5025,7 +5031,7 @@
       mediaUrls = [];
       document.getElementById("fid").value = "";
       document.getElementById("mtitle").textContent = "Novo Produto";
-      ["fnome", "fdesc", "fvar", "fpag", "fpreco", "fpromo", "festoque", "fparcelas", "fforn", "fgarantia", "ftags"].forEach(id => document.getElementById(id).value = "");
+      ["fnome", "fdesc", "fvar", "fpag", "fpreco", "fpromo", "festoque", "fparcelas", "fforn", "fgarantia", "ftags", "fCustoUnit"].forEach(id => document.getElementById(id).value = "");
       document.getElementById("fcat").value = "";
       document.getElementById("fstatus").value = "Ativo";
       document.getElementById("fdest").value = "Não";
@@ -5055,6 +5061,7 @@
       document.getElementById("fforn").value = p["Fornecedores_JSON"] || "";
       document.getElementById("fgarantia").value = p["Garantia_Padrao"] || "";
       document.getElementById("ftags").value = p["Tags_Personalizadas"] || "";
+      document.getElementById("fCustoUnit").value = p["Custo_Unitario"] || "";
       const prevEl = document.getElementById("previews");
       prevEl.innerHTML = "";
       [p["Imagem 1 (URL)"], p["Imagem 2 (URL)"], p["Imagem 3 (URL)"], p["Vídeo (URL)"]].forEach(u => { if (u) addPreview(u); });
@@ -5224,6 +5231,7 @@
         "Fornecedores_JSON": document.getElementById("fforn").value,
         "Garantia_Padrao": document.getElementById("fgarantia").value,
         "Tags_Personalizadas": document.getElementById("ftags").value,
+        "Custo_Unitario": document.getElementById("fCustoUnit").value,
         "Imagem 1 (URL)": _imgs[0] || "",
         "Imagem 2 (URL)": _imgs[1] || "",
         "Imagem 3 (URL)": _imgs[2] || "",
@@ -9224,6 +9232,13 @@
         if (!allProds.length) {
           const pr = await apiGet("getProdutos").catch(() => ({ produtos: [] }));
           allProds = pr.produtos || [];
+        }
+        // Mostrar erro de analytics se existir
+        const anErrEl = document.getElementById("analyticsErrBanner");
+        if (anErrEl) {
+          const hasErr = (r && r.error) || (metrR && metrR.error);
+          anErrEl.style.display = hasErr ? "block" : "none";
+          if (hasErr) anErrEl.textContent = "⚠️ Analytics com problema: " + ((r && r.error) || (metrR && metrR.error) || "verifique as abas");
         }
         if (r.error) {
           const metr = metrR.metricas || {};
