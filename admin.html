@@ -4301,10 +4301,11 @@
     async function apiGet(action, params = {}) {
       const url = new URL(API);
       url.searchParams.set("action", action);
+      url.searchParams.set("_t", Date.now()); // cache bust
       Object.entries(params).forEach(([k, v]) => {
         if (v !== undefined && v !== null) url.searchParams.set(k, String(v));
       });
-      const res = await fetch(url.toString());
+      const res = await fetch(url.toString(), { cache: "no-store" });
       if (!res.ok) throw new Error("HTTP " + res.status);
       return res.json();
     }
