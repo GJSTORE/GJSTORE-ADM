@@ -5332,7 +5332,7 @@
     function closeNoCatModal() { document.getElementById("nocatModal").classList.remove("open"); }
 
     async function toggleProd(id, novoStatus) {
-      const prod = allProds.find(p => p["ID"] === id);
+      const prod = allProds.find(p => String(p["ID"]) === String(id));
       if (!prod) return;
       const label = novoStatus === "Ativo" ? "Ativado ✅" : "Inativado 🔴";
       try {
@@ -7981,7 +7981,7 @@
       const qty = Math.max(1, parseInt(document.getElementById("docProdQty").value) || 1);
       const id = sel.value;
       if (!id) { toast("Selecione um produto", "err"); return; }
-      const prod = allProds.find(p => p["ID"] === id);
+      const prod = allProds.find(p => String(p["ID"]) === String(id));
       if (!prod) return;
       const preco = Number(prod["Preço Promo (R$)"] || 0) > 0 && Number(prod["Preço Promo (R$)"]) < Number(prod["Preço (R$)"])
         ? Number(prod["Preço Promo (R$)"])
@@ -9063,7 +9063,7 @@
       const editBtn = e.target.closest(".ae");
       const toggleBtn = e.target.closest("[data-toggle-id]");
       if (editBtn) {
-        const prod = allProds.find(p => p["ID"] === editBtn.dataset.prodId);
+        const prod = allProds.find(p => String(p["ID"]) === editBtn.dataset.prodId);
         if (prod) editProd(prod);
       } else if (toggleBtn) {
         toggleProd(toggleBtn.dataset.toggleId, toggleBtn.dataset.toggleStatus);
