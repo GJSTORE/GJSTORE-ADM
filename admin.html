@@ -4236,8 +4236,8 @@
 
     const API = (typeof GAS_URL !== "undefined") ? GAS_URL : "https://script.google.com/macros/s/AKfycbwHPwPB-6YbBSjfbhefrCxwmAdoN1vt6NPLr9BInR3aARtFsMoH87GKR0RUAhaCAyDw/exec";
     const _cfgVal = v => (typeof v !== "undefined" && v && !String(v).includes("COLE")) ? v : "";
-    const CLOUDINARY_CLOUD  = _cfgVal(typeof CFG_CLOUDINARY_CLOUD  !== "undefined" ? CFG_CLOUDINARY_CLOUD  : "");
-    const CLOUDINARY_PRESET = _cfgVal(typeof CFG_CLOUDINARY_PRESET !== "undefined" ? CFG_CLOUDINARY_PRESET : "");
+    const CLOUDINARY_CLOUD  = _cfgVal(typeof CFG_CLOUDINARY_CLOUD  !== "undefined" ? CFG_CLOUDINARY_CLOUD  : "eslbyl14");
+    const CLOUDINARY_PRESET = _cfgVal(typeof CFG_CLOUDINARY_PRESET !== "undefined" ? CFG_CLOUDINARY_PRESET : "gjstore2");
     const SITE_URL = _cfgVal(typeof CFG_SITE_URL !== "undefined" ? CFG_SITE_URL : "");
     function _shareBase() {
       if (SITE_URL) return SITE_URL.replace(/\/?$/, "/");
@@ -5134,6 +5134,7 @@
       fd.append("upload_preset", CLOUDINARY_PRESET);
       const r = await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD}/auto/upload`, { method: "POST", body: fd });
       const data = await r.json();
+      if (!r.ok || data.error) throw new Error(data.error?.message || "Cloudinary erro " + r.status);
       return data.secure_url;
     }
 
