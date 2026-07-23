@@ -5253,6 +5253,8 @@
         if (res.ok) {
           apiGet("logAcao", { sessao: "admin", acao: params["ID"] ? "EDIT_PRODUCT" : "NEW_PRODUCT", detalhe: res.id || params["ID"] || nome, origem: "adm", dispositivo: "Admin" }).catch(() => {});
           toast("Produto salvo! ✅"); closeM(); allProds = []; await loadProds();
+          // GAS caches Sheets reads ~1-2s after write — reload again to show fresh data
+          setTimeout(async () => { allProds = []; await loadProds(); }, 2500);
         } else toast(res.error || "Erro ao salvar", "err");
       } catch (e) { toast("Erro de conexão", "err"); }
       btn.disabled = false; btn.textContent = "💾 Salvar Produto";
