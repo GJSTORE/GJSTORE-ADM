@@ -3118,6 +3118,14 @@
         </div>
         <button class="nca-btn">Ver produtos →</button>
       </div>
+      <div id="fixIdsAlert" style="display:none;margin-bottom:8px;padding:10px 14px;border-radius:10px;background:rgba(229,57,53,.12);border:1px solid rgba(229,57,53,.3);cursor:pointer;display:flex;align-items:center;gap:10px" onclick="fixarIDsVazios()">
+        <span style="font-size:18px;flex-shrink:0">🔧</span>
+        <div style="flex:1;font-size:13px;color:#ef9a9a;font-weight:700">
+          <span id="fixIdsCount"></span> produto(s) sem ID — não podem ser editados
+          <div style="font-size:11px;color:var(--muted);font-weight:400;margin-top:1px">Clique para corrigir automaticamente</div>
+        </div>
+        <button style="font-size:11px;background:rgba(229,57,53,.2);border:1px solid rgba(229,57,53,.4);color:#ef9a9a;border-radius:8px;padding:4px 10px;cursor:pointer;white-space:nowrap">Corrigir →</button>
+      </div>
       <div class="plist" id="plist">
         <div class="loading">
           <div class="spin"></div>Carregando...
@@ -4997,6 +5005,7 @@
         if (semCat.length > 0) { alertEl.style.display = "flex"; if (cntNc) cntNc.textContent = semCat.length; }
         else { alertEl.style.display = "none"; }
       }
+      _checkFixIdsAlert();
       const list = allProds.filter(p => {
         const mq = !q || (p["Nome do Produto"] || "").toLowerCase().includes(q);
         const mcat = !cat || cat === "__sem_cat__" || p["Categoria"] === cat;
@@ -5260,6 +5269,26 @@
           } catch (e) { toast("Erro de conexão", "err"); }
         }
       );
+    }
+
+    async function fixarIDsVazios() {
+      const semId = allProds.filter(p => !String(p["ID"] || "").trim()).length;
+      if (!semId) { toast("Nenhum produto sem ID ✅"); return; }
+      toast("Corrigindo " + semId + " produto(s)… ⏳");
+      try {
+        const res = await apiGet("fixarIDsVazios");
+        if (res.ok) { toast("✅ " + res.fixed + " IDs atribuídos"); allProds = []; await loadProds(); }
+        else toast(res.erro || "Erro", "err");
+      } catch(e) { toast("Erro de conexão", "err"); }
+    }
+
+    function _checkFixIdsAlert() {
+      const semId = allProds.filter(p => !String(p["ID"] || "").trim()).length;
+      const el = document.getElementById("fixIdsAlert");
+      const cnt = document.getElementById("fixIdsCount");
+      if (!el) return;
+      if (semId > 0) { if (cnt) cnt.textContent = semId; el.style.display = "flex"; }
+      else el.style.display = "none";
     }
 
     // Nomes de categorias ATIVAS (allCats carregado no boot)
