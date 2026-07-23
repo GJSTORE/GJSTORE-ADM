@@ -5239,7 +5239,7 @@
         "Vídeo (URL)": _vid || "",
       };
       try {
-        const res = await apiGet("salvarProduto", params);
+        const res = await apiPost("salvarProduto", params);
         if (res.ok) {
           apiGet("logAcao", { sessao: "admin", acao: params["ID"] ? "EDIT_PRODUCT" : "NEW_PRODUCT", detalhe: res.id || params["ID"] || nome, origem: "adm", dispositivo: "Admin" }).catch(() => {});
           toast("Produto salvo! ✅"); closeM(); allProds = []; await loadProds();
@@ -5312,7 +5312,7 @@
       if (!p) return;
       const params = Object.assign({}, p, { id: prodId, ID: prodId, "Categoria": cat });
       try {
-        const res = await apiGet("salvarProduto", params);
+        const res = await apiPost("salvarProduto", params);
         if (res.ok) {
           toast("Categoria atribuída ✅"); allProds = []; await loadProds();
           openNoCatModal();
@@ -5337,7 +5337,7 @@
       const label = novoStatus === "Ativo" ? "Ativado ✅" : "Inativado 🔴";
       try {
         const params = Object.assign({}, prod, { "Status": novoStatus, id, "ID": id });
-        const res = await apiGet("salvarProduto", params);
+        const res = await apiPost("salvarProduto", params);
         if (res.ok) {
           prod["Status"] = novoStatus;
           toast(label); renderProds();
