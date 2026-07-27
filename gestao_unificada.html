@@ -1407,35 +1407,50 @@ function openDetail(pedId) {
   const extras = getPedDatesLocal(id);
   const tlHtml = buildCronogramaHtml(id, dv, extras, pagas);
 
-  // Itens
-  const itensRaw = String(p["Itens"] || "").trim();
-  let itensHtml = "";
+  // Itens — layout idêntico ao verRecibo do index.html (thumb 72×72)
+  const itensRaw = String(p["Itens"] || p["Itens (JSON)"] || "").trim();
+  let itensArr = [];
   if (itensRaw && itensRaw !== "[]") {
     try {
-      const arr = JSON.parse(itensRaw);
-      if (Array.isArray(arr) && arr.length) {
-        itensHtml = arr.map(i => {
-          const n = (i.nome || i.name || "?") + (i.variacao ? ` (${i.variacao})` : "");
-          const q = i.qtd || i.qty || 1;
-          const v = Number(i.valor || i.preco || 0);
-          const imgUrl = _rcProdImg(i.nome || i.name);
-          const thumb = imgUrl
-            ? `<img src="${imgUrl}?_nc=1" crossorigin="anonymous" style="width:100%;height:100%;object-fit:cover;border-radius:6px" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">`
-            : "";
-          const fb = `<div style="display:${imgUrl ? "none" : "flex"};align-items:center;justify-content:center;width:100%;height:100%;font-size:18px;color:var(--muted)">📦</div>`;
-          return `<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border)">
-            <div style="width:52px;height:52px;border-radius:8px;background:rgba(255,255,255,.04);border:1px solid var(--border);flex-shrink:0;overflow:hidden">${thumb}${fb}</div>
-            <div style="flex:1;min-width:0">
-              <div style="font-size:13px;color:var(--fg);font-weight:600;line-height:1.3">${n}</div>
-              ${v > 0 ? `<div style="font-size:10px;color:var(--muted);margin-top:2px">${fmt(v)} × ${q} un.</div>` : ""}
-            </div>
-            ${v > 0 ? `<div style="text-align:right;flex-shrink:0"><div style="font-size:13px;font-weight:800;color:var(--g)">${fmt(v*q)}</div>${q>1?`<div style="font-size:9px;color:var(--muted)">unit. ${fmt(v)}</div>`:""}</div>` : ""}
-          </div>`;
-        }).join("");
-      } else throw 0;
-    } catch {
-      itensHtml = itensRaw.split("|").map(s => `<div style="padding:4px 0;border-bottom:1px solid var(--border);font-size:13px">• ${s.trim()}</div>`).join("");
+      const parsed = JSON.parse(itensRaw);
+      if (Array.isArray(parsed) && parsed.length) itensArr = parsed;
+    } catch(e) {
+      itensArr = itensRaw.split("|").map(s => s.trim()).filter(Boolean).map(s => {
+        const mQty = s.match(/^(.+?)\s*x\s*(\d+)\s*$/i);
+        return mQty ? { nome: mQty[1].trim(), qtd: Number(mQty[2]), valor: 0 } : { nome: s, qtd: 1, valor: 0 };
+      });
     }
+  }
+  let itensHtml = "";
+  const itensCount = itensArr.length;
+  if (itensCount) {
+    const subFromPed = Number(p["Subtotal (R$)"] || p["Subtotal"] || 0);
+    const somaCalc = itensArr.reduce((s, i) => s + Number(i.valor || i.preco || 0) * Number(i.qtd || i.qty || 1), 0);
+    const divergeSub = subFromPed > 0 && Math.abs(somaCalc - subFromPed) > 0.5;
+    itensHtml = itensArr.map(i => {
+      const n = (i.nome || i.name || "?") + (i.variacao ? ` (${i.variacao})` : "");
+      const q = Number(i.qtd || i.qty || 1);
+      const v = Number(i.valor || i.preco || 0);
+      const tot = v * q;
+      const img = _rcProdImg(i.nome || i.name);
+      const thumb = img
+        ? `<img src="${img}?_nc=1" crossorigin="anonymous" style="width:100%;height:100%;object-fit:cover;border-radius:8px;display:block" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">`
+        : "";
+      const fb = `<div style="display:${img ? "none" : "flex"};align-items:center;justify-content:center;height:100%;font-size:24px;color:var(--muted)">📦</div>`;
+      return `<div style="display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--border)">
+        <div style="width:72px;height:72px;border-radius:10px;background:rgba(255,255,255,.04);border:1px solid var(--border);flex-shrink:0;overflow:hidden">${thumb}${fb}</div>
+        <div style="flex:1;min-width:0">
+          <div style="font-size:13px;color:var(--fg);font-weight:700;line-height:1.35">${n}</div>
+          ${v > 0 ? `<div style="font-size:11px;color:var(--muted);margin-top:3px">${fmt(v)} × ${q} un.</div>` : `<div style="font-size:11px;color:var(--muted);margin-top:3px">${q} un.</div>`}
+        </div>
+        <div style="text-align:right;flex-shrink:0">
+          <div style="font-size:14px;font-weight:900;color:var(--g)">${tot > 0 ? fmt(tot) : "—"}</div>
+          ${q > 1 && v > 0 ? `<div style="font-size:10px;color:var(--muted)">unit. ${fmt(v)}</div>` : ""}
+        </div>
+      </div>`;
+    }).join("") + (divergeSub ? `<div style="margin-top:8px;padding:8px 10px;background:rgba(255,183,77,.1);border:1px solid rgba(255,183,77,.3);border-radius:8px;font-size:11px;color:#ffb74d">⚠️ Soma itens ${fmt(somaCalc)} ≠ subtotal ${fmt(subFromPed)}</div>` : "");
+  } else {
+    itensHtml = '<div style="padding:12px;color:var(--r);font-size:13px;font-weight:600">⚠️ Nenhum item registrado neste pedido</div>';
   }
 
   // Resumo financeiro compacto no topo
@@ -1521,7 +1536,7 @@ function openDetail(pedId) {
       ${p["Observações"] ? `<div class="det-cell det-full"><div class="det-lbl">📝 Obs</div><div class="det-val" style="font-size:12px">${p["Observações"]}</div></div>` : ""}
     </div>
 
-    ${itensHtml ? `<div class="det-sec"><div class="det-sec-title">🛒 Itens do Pedido</div>${itensHtml}</div>` : ""}
+    <div class="det-sec"><div class="det-sec-title">🛒 Itens do Pedido${itensCount > 1 ? ` (${itensCount})` : ""}</div>${itensHtml}</div>
 
     <div class="det-sec">
       <div class="det-sec-title">💳 Histórico Financeiro</div>
@@ -1956,48 +1971,45 @@ async function showRecibo(pedId) {
   const qtdParc = Number(p["Qtd_Parcelas"] || 0);
   const itensRaw = String(p["Itens"] || "").trim();
 
-  // ── Itens HTML (imagem + preço + qtd + total) ──
-  let itensHtml = "";
+  // ── Itens HTML — layout idêntico ao verRecibo do index.html (thumb 72×72) ──
   let itensArr = [];
   if (itensRaw && itensRaw !== "[]") {
     try {
-      const arr = JSON.parse(itensRaw);
-      if (Array.isArray(arr) && arr.length) {
-        itensArr = arr;
-        itensHtml = arr.map(i => {
-          const n = (i.nome || i.name || "?") + (i.variacao ? ` (${i.variacao})` : "");
-          const q = Number(i.qtd || i.qty || 1);
-          const v = Number(i.valor || i.preco || 0);
-          const tot = v * q;
-          const img = _rcProdImg(i.nome || i.name);
-          const thumb = img
-            ? `<img src="${img}?_nc=1" crossorigin="anonymous" style="width:100%;height:100%;object-fit:cover;border-radius:8px;display:block" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">`
-            : "";
-          const fb = `<div style="display:${img ? "none" : "flex"};align-items:center;justify-content:center;height:100%;font-size:20px;color:#8899aa">📦</div>`;
-          return `<div style="display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid rgba(255,255,255,.05)">
-            <div style="width:54px;height:54px;border-radius:8px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);flex-shrink:0;overflow:hidden">${thumb}${fb}</div>
-            <div style="flex:1;min-width:0">
-              <div style="font-size:12px;color:#e2f4ff;font-weight:700;line-height:1.35">${n}</div>
-              ${v > 0 ? `<div style="font-size:10px;color:#8899aa;margin-top:3px">${fmt(v)} × ${q} un.</div>` : ""}
-            </div>
-            <div style="text-align:right;flex-shrink:0">
-              <div style="font-size:14px;font-weight:900;color:#00e676">${tot > 0 ? fmt(tot) : "—"}</div>
-              ${q > 1 ? `<div style="font-size:9px;color:#8899aa">unit. ${fmt(v)}</div>` : ""}
-            </div>
-          </div>`;
-        }).join("");
-      } else throw 0;
-    } catch {
-      itensHtml = itensRaw.split("|").map(s => {
-        const n = s.trim();
-        const img = _rcProdImg(n);
-        const thumbHtml = img ? `<img src="${img}?_nc=1" crossorigin="anonymous" style="width:100%;height:100%;object-fit:cover;border-radius:8px" onerror="this.style.display='none'">` : "📦";
-        return `<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid rgba(255,255,255,.05)">
-          <div style="width:48px;height:48px;border-radius:8px;background:rgba(255,255,255,.04);flex-shrink:0;overflow:hidden;display:flex;align-items:center;justify-content:center;font-size:18px">${thumbHtml}</div>
-          <div style="font-size:12px;color:#e2f4ff;font-weight:600">${n}</div>
-        </div>`;
-      }).join("");
+      const parsed = JSON.parse(itensRaw);
+      if (Array.isArray(parsed) && parsed.length) itensArr = parsed;
+    } catch(e) {
+      itensArr = itensRaw.split("|").map(s => s.trim()).filter(Boolean).map(s => {
+        const mQty = s.match(/^(.+?)\s*x\s*(\d+)\s*$/i);
+        return mQty ? { nome: mQty[1].trim(), qtd: Number(mQty[2]), valor: 0 } : { nome: s, qtd: 1, valor: 0 };
+      });
     }
+  }
+  let itensHtml = "";
+  if (itensArr.length) {
+    itensHtml = itensArr.map(i => {
+      const n = (i.nome || i.name || "?") + (i.variacao ? ` (${i.variacao})` : "");
+      const q = Number(i.qtd || i.qty || 1);
+      const v = Number(i.valor || i.preco || 0);
+      const tot = v * q;
+      const img = _rcProdImg(i.nome || i.name);
+      const thumb = img
+        ? `<img src="${img}?_nc=1" crossorigin="anonymous" style="width:100%;height:100%;object-fit:cover;border-radius:8px;display:block" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">`
+        : "";
+      const fb = `<div style="display:${img ? "none" : "flex"};align-items:center;justify-content:center;height:100%;font-size:24px;color:#8899aa">📦</div>`;
+      return `<div style="display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid rgba(255,255,255,.05)">
+        <div style="width:72px;height:72px;border-radius:10px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);flex-shrink:0;overflow:hidden">${thumb}${fb}</div>
+        <div style="flex:1;min-width:0">
+          <div style="font-size:12px;color:#e2f4ff;font-weight:700;line-height:1.35">${n}</div>
+          ${v > 0 ? `<div style="font-size:10px;color:#8899aa;margin-top:3px">${fmt(v)} × ${q} un.</div>` : `<div style="font-size:10px;color:#8899aa;margin-top:3px">${q} un.</div>`}
+        </div>
+        <div style="text-align:right;flex-shrink:0">
+          <div style="font-size:14px;font-weight:900;color:#00e676">${tot > 0 ? fmt(tot) : "—"}</div>
+          ${q > 1 && v > 0 ? `<div style="font-size:9px;color:#8899aa">unit. ${fmt(v)}</div>` : ""}
+        </div>
+      </div>`;
+    }).join("");
+  } else {
+    itensHtml = '<div style="padding:12px;color:#f44336;font-size:12px;font-weight:600">⚠️ Nenhum item registrado neste pedido</div>';
   }
 
   // ── Saldo / Histórico ──
@@ -2092,10 +2104,10 @@ async function showRecibo(pedId) {
       ${obs ? `<div style="font-size:10px;color:#8899aa;margin-top:6px;padding:5px 8px;background:rgba(255,255,255,.03);border-radius:6px;border-left:2px solid rgba(255,255,255,.1)">📝 ${obs}</div>` : ""}
     </div>
 
-    ${itensHtml ? `<div style="padding:12px 16px;border-bottom:1px solid #1a2840">
-      <div style="font-size:9px;font-weight:800;color:#8899aa;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">🛒 ITENS DO PEDIDO</div>
+    <div style="padding:12px 16px;border-bottom:1px solid #1a2840">
+      <div style="font-size:9px;font-weight:800;color:#8899aa;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">🛒 ITENS DO PEDIDO${itensArr.length > 1 ? ` (${itensArr.length})` : ""}</div>
       ${itensHtml}
-    </div>` : ""}
+    </div>
 
     <div style="padding:12px 16px;border-bottom:1px solid #1a2840;background:rgba(6,12,24,.6)">
       <div style="font-size:9px;font-weight:800;color:#8899aa;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">💰 VALORES</div>
