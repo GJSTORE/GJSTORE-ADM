@@ -504,6 +504,12 @@ body{background:var(--dark);color:var(--text);font-family:var(--B);min-height:10
         <input id="schInp" type="text" placeholder="Buscar por ID, cliente, itens..." oninput="render()">
       </div>
 
+      <!-- Toggle view -->
+      <div id="pedViewToggle" style="display:flex;gap:6px;margin-bottom:10px">
+        <button id="pvtPedidos" class="pb" onclick="setPedView('pedidos')" style="flex:1;font-size:12px;padding:7px 0">📋 Pedidos</button>
+        <button id="pvtClientes" class="pb" onclick="setPedView('clientes')" style="flex:1;font-size:12px;padding:7px 0;opacity:.5">👥 Clientes</button>
+      </div>
+
       <!-- Lista de pedidos -->
       <div id="guList"></div>
       <div id="loadMore" style="display:none;text-align:center;margin-top:10px">
@@ -619,6 +625,7 @@ document.addEventListener("DOMContentLoaded", function() {
 let allPeds = [], allBaixas = [];
 let filtStatus = localStorage.getItem("gj_filt") || "", filtSearch = "", visibleCount = 30;
 let kpiFilter = null;
+let pedView = "pedidos"; // "pedidos" | "clientes"
 let currentPed = null, currentBxStatus = "No Prazo";
 let _storeName = "GJ STORE";
 const _SIG = "\n\n_MENSAGEM AUTOMÁTICA — SISTEMA GJ STORE_";
@@ -650,8 +657,24 @@ function fmtDT(s, dateOnly) {
   if (!s) return "";
   const str = String(s).trim();
   if (!str) return "";
-  if (dateOnly) return str.split(" ")[0];
-  return str;
+  // ISO format (ex: 2026-08-10T07:00:00.000Z)
+  if (/^\d{4}-\d{2}-\d{2}T/.test(str)) {
+    try {
+      const d = new Date(str);
+      if (!isNaN(d.getTime())) {
+        const dd = String(d.getDate()).padStart(2, "0");
+        const mm = String(d.getMonth() + 1).padStart(2, "0");
+        const yyyy = d.getFullYear();
+        if (dateOnly) return `${dd}/${mm}/${yyyy}`;
+        const hh = String(d.getHours()).padStart(2, "0");
+        const mn = String(d.getMinutes()).padStart(2, "0");
+        return `${dd}/${mm}/${yyyy} ${hh}:${mn}`;
+      }
+    } catch(e) {}
+  }
+  // DD/MM/YYYY already formatted
+  if (/^\d{2}\/\d{2}\/\d{4}/.test(str)) return dateOnly ? str.slice(0, 10) : str;
+  return dateOnly ? str.split(" ")[0] : str;
 }
 function ageDays(p) {
   const parts = String(p["Data/Hora"] || "").split("/");
@@ -823,8 +846,63 @@ function getFiltered() {
 }
 
 // ── RENDER LISTA ──────────────────────────────────────────────────
+function setPedView(v) {
+  pedView = v;
+  document.getElementById("pvtPedidos").style.opacity = v === "pedidos" ? "1" : ".5";
+  document.getElementById("pvtClientes").style.opacity = v === "clientes" ? "1" : ".5";
+  visibleCount = 30;
+  render();
+}
+
+function renderClientes() {
+  const filtered = getFiltered();
+  const el = document.getElementById("guList");
+  document.getElementById("loadMore").style.display = "none";
+  if (!filtered.length) { el.innerHTML = `<div class="empty">Nenhum pedido encontrado</div>`; return; }
+  const map = {};
+  filtered.forEach(p => {
+    const nm = String(p["Nome Cliente"] || "—").trim();
+    if (!map[nm]) map[nm] = [];
+    map[nm].push(p);
+  });
+  const rows = Object.keys(map).sort().map(nm => {
+    const peds = map[nm];
+    const total = peds.reduce((s, p) => s + Number(p["Total (R$)"] || 0), 0);
+    const id0 = String(peds[0]["ID Pedido"] || "");
+    const tel = String(peds[0]["Telefone"] || "").replace(/\D/g, "");
+    let pendente = 0, atrasado = 0, quitados = 0;
+    peds.forEach(p => {
+      const pid = String(p["ID Pedido"] || "");
+      const ptot = Number(p["Total (R$)"] || 0);
+      const { quitado } = calcSaldo(pid, ptot);
+      const dv = p["Data_Vencimento"] || "";
+      const da = diasAtraso(dv);
+      const st = p["Status"] || "";
+      if (st === "Finalizado" || quitado) { quitados++; return; }
+      if (da > 0) atrasado++;
+      else pendente++;
+    });
+    const statusColor = atrasado > 0 ? "var(--r)" : pendente > 0 ? "#ffb74d" : "var(--g)";
+    const statusLabel = atrasado > 0 ? `${atrasado} atrasado${atrasado>1?"s":""}` : pendente > 0 ? `${pendente} pendente${pendente>1?"s":""}` : "Quitado";
+    const telAttr = tel ? ` onclick="window.open('https://wa.me/55${tel}','_blank')"` : "";
+    return `<div class="card"${telAttr} style="${tel ? "cursor:pointer;" : ""}">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <div style="font-size:14px;font-weight:700;color:var(--fg)">${nm}</div>
+        <div style="font-size:13px;font-weight:800;color:var(--g)">${fmt(total)}</div>
+      </div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:6px">
+        <div style="font-size:11px;color:var(--muted)">${peds.length} pedido${peds.length>1?"s":""} · ${quitados} quitado${quitados!==1?"s":""}</div>
+        <span style="font-size:10px;font-weight:700;color:${statusColor};background:${statusColor}22;padding:2px 7px;border-radius:6px">${statusLabel}</span>
+      </div>
+      ${tel ? `<div style="font-size:10px;color:var(--muted);margin-top:4px">💬 ${tel}</div>` : ""}
+    </div>`;
+  });
+  el.innerHTML = rows.join("");
+}
+
 function render() {
   updateBellBadge(); // 🔔 recalcula cobranças a cada render
+  if (pedView === "clientes") { renderKpis(); renderClientes(); return; }
   const filtered = getFiltered();
   const batch = filtered.slice(0, visibleCount);
   const el = document.getElementById("guList");
@@ -1337,12 +1415,21 @@ function openDetail(pedId) {
       const arr = JSON.parse(itensRaw);
       if (Array.isArray(arr) && arr.length) {
         itensHtml = arr.map(i => {
-          const n = i.nome || i.name || "?";
+          const n = (i.nome || i.name || "?") + (i.variacao ? ` (${i.variacao})` : "");
           const q = i.qtd || i.qty || 1;
           const v = Number(i.valor || i.preco || 0);
-          return `<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--border);font-size:13px">
-            <span>• ${n} <span style="color:var(--muted)">x${q}</span></span>
-            ${v ? `<span style="color:var(--g)">${fmt(v*q)}</span>` : ""}
+          const imgUrl = _rcProdImg(i.nome || i.name);
+          const thumb = imgUrl
+            ? `<img src="${imgUrl}?_nc=1" crossorigin="anonymous" style="width:100%;height:100%;object-fit:cover;border-radius:6px" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">`
+            : "";
+          const fb = `<div style="display:${imgUrl ? "none" : "flex"};align-items:center;justify-content:center;width:100%;height:100%;font-size:18px;color:var(--muted)">📦</div>`;
+          return `<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border)">
+            <div style="width:52px;height:52px;border-radius:8px;background:rgba(255,255,255,.04);border:1px solid var(--border);flex-shrink:0;overflow:hidden">${thumb}${fb}</div>
+            <div style="flex:1;min-width:0">
+              <div style="font-size:13px;color:var(--fg);font-weight:600;line-height:1.3">${n}</div>
+              ${v > 0 ? `<div style="font-size:10px;color:var(--muted);margin-top:2px">${fmt(v)} × ${q} un.</div>` : ""}
+            </div>
+            ${v > 0 ? `<div style="text-align:right;flex-shrink:0"><div style="font-size:13px;font-weight:800;color:var(--g)">${fmt(v*q)}</div>${q>1?`<div style="font-size:9px;color:var(--muted)">unit. ${fmt(v)}</div>`:""}</div>` : ""}
           </div>`;
         }).join("");
       } else throw 0;
@@ -1388,6 +1475,16 @@ function openDetail(pedId) {
       <button class="det-close" onclick="closeDetail()">✕</button>
     </div>
 
+    ${(() => {
+      const tel = String(p["Telefone"] || "").replace(/\D/g, "");
+      const qtdParc = Number(p["Qtd_Parcelas"] || 0);
+      return `<div style="display:flex;gap:6px;padding:10px 12px;border-bottom:1px solid var(--border);flex-wrap:wrap">
+        ${tel ? `<a href="https://wa.me/55${tel}" target="_blank" style="flex:1;min-width:80px;display:flex;align-items:center;justify-content:center;gap:4px;background:rgba(37,211,102,.15);border:1px solid #25d36655;color:#25d366;border-radius:8px;padding:7px 6px;text-decoration:none;font-size:11px;font-weight:700">💬 WhatsApp</a>` : ""}
+        ${tel ? `<a href="tel:${tel}" style="flex:1;min-width:60px;display:flex;align-items:center;justify-content:center;gap:4px;background:rgba(0,188,212,.1);border:1px solid rgba(0,188,212,.3);color:var(--c);border-radius:8px;padding:7px 6px;text-decoration:none;font-size:11px;font-weight:700">📞 Ligar</a>` : ""}
+        <button onclick="showBaixaReceipt({},currentPed)" style="flex:1;min-width:60px;background:rgba(0,230,118,.1);border:1px solid rgba(0,230,118,.3);color:var(--g);border-radius:8px;padding:7px 6px;font-size:11px;font-weight:700;cursor:pointer">🧾 Recibo</button>
+        ${qtdParc > 1 ? `<div style="flex:1;min-width:80px;display:flex;align-items:center;justify-content:center;gap:4px;background:rgba(255,183,77,.1);border:1px solid rgba(255,183,77,.3);color:#ffb74d;border-radius:8px;padding:7px 6px;font-size:11px;font-weight:700">${pagas.length}/${qtdParc} parcelas</div>` : ""}
+      </div>`;
+    })()}
     ${finResumoHtml}
 
     ${status === "Entregue" && !quitado ? `<div class="entregue-alert" style="margin-bottom:12px">📦 PRODUTO ENTREGUE — AGUARDANDO QUITAÇÃO · Restam ${fmt(saldo)}</div>` : ""}
@@ -1424,7 +1521,7 @@ function openDetail(pedId) {
       ${p["Observações"] ? `<div class="det-cell det-full"><div class="det-lbl">📝 Obs</div><div class="det-val" style="font-size:12px">${p["Observações"]}</div></div>` : ""}
     </div>
 
-    ${itensHtml ? `<div class="det-sec"><div class="det-sec-title">🛒 Itens do Pedido</div><div>${itensHtml}</div></div>` : ""}
+    ${itensHtml ? `<div class="det-sec"><div class="det-sec-title">🛒 Itens do Pedido</div>${itensHtml}</div>` : ""}
 
     <div class="det-sec">
       <div class="det-sec-title">💳 Histórico Financeiro</div>
