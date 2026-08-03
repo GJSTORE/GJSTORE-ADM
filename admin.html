@@ -3722,6 +3722,16 @@
         <div style="display:flex;gap:10px;align-items:flex-start"><span style="color:var(--c);flex-shrink:0">⏰</span><span><b>Cobranças D-1 (8h)</b> — precisa do trigger ativo. Email diário com links WPP prontos para cobrar vencimentos de amanhã.</span></div>
       </div>
     </div>
+
+    <!-- E1.3: AUDITORIA -->
+    <div style="background:var(--d2);border-radius:14px;padding:16px;border:1px solid var(--border);margin-top:14px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+        <div style="font-family:var(--H);font-weight:700;font-size:13px">🔍 Auditoria — últimas ações</div>
+        <button class="savebtn" style="padding:5px 12px;font-size:11px" onclick="_loadAuditoria()">🔄 Atualizar</button>
+      </div>
+      <div style="font-size:11px;color:var(--muted);margin-bottom:10px">Quem fez o quê: exclusões, edições, baixas. Toda escrita sensível fica registrada aqui automaticamente.</div>
+      <div id="auditoriaList"><div class="empty">Clique em Atualizar pra carregar</div></div>
+    </div>
   </div>
 
   </div><!-- /#app -->
@@ -10628,6 +10638,26 @@
           </div>`;
         }).join("");
       } catch(e) { document.getElementById("parcelasResumo").innerHTML = `<div style="grid-column:1/-1;color:var(--r)">Erro ao carregar parcelas.</div>`; }
+    }
+
+    // E1.3: auditoria — lê Log_Acoes (já preenchido automaticamente pelo backend em toda escrita sensível)
+    async function _loadAuditoria() {
+      const el = document.getElementById("auditoriaList");
+      el.innerHTML = `<div class="empty">Carregando...</div>`;
+      try {
+        const r = await apiGet("getLogAcoes", { limite: 100 });
+        const logs = r.logs || [];
+        if (!logs.length) { el.innerHTML = `<div class="empty">Nenhuma ação registrada ainda</div>`; return; }
+        const acaoIcon = { EXCLUIR_PEDIDO_HARD: "🗑️", darBaixa: "💰", editarPedido: "✏️", novoPedido: "🆕", salvarProduto: "📦", deletarProduto: "🗑️", salvarCliente: "👤", deletarCliente: "🗑️", atualizarStatus: "🔄", toggleCategoria: "🏷️" };
+        el.innerHTML = logs.map(l => `<div style="display:flex;gap:8px;padding:7px 0;border-bottom:1px solid var(--border);font-size:12px">
+          <span style="flex-shrink:0">${acaoIcon[l.Acao] || "📋"}</span>
+          <div style="flex:1;min-width:0">
+            <div><b>${l.Operador || "—"}</b> · ${l.Acao || "—"}${l.Entidade ? ` (${l.Entidade})` : ""}${l.ID_Ref ? ` #${l.ID_Ref}` : ""}</div>
+            ${l.Detalhe ? `<div style="color:var(--muted);font-size:11px">${l.Detalhe}</div>` : ""}
+          </div>
+          <span style="flex-shrink:0;color:var(--muted);font-size:10px;white-space:nowrap">${l.Timestamp || ""}</span>
+        </div>`).join("");
+      } catch(e) { el.innerHTML = `<div class="empty" style="color:var(--r)">Erro ao carregar auditoria</div>`; }
     }
 
     function darBaixaParcela(idPedido, idx, valor, nomeCliente) {
