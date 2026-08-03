@@ -3169,6 +3169,7 @@
           <option value="">Todos</option>
           <option>Ativo</option>
           <option>Inativo</option>
+          <option value="__rascunho__">📝 Rascunho</option>
           <option value="__sem_cat__">⚠️ Sem Categoria</option>
         </select>
         <span id="inativeCnt"></span>
@@ -3781,6 +3782,14 @@
             <select class="fi" id="fstatus">
               <option>Ativo</option>
               <option>Inativo</option>
+            </select>
+          </div>
+        </div>
+        <div class="frow">
+          <div class="fg"><label class="fl">Publicação (E5.1)</label>
+            <select class="fi" id="fpublicado">
+              <option value="Sim">✅ Publicado — visível na loja</option>
+              <option value="Não">📝 Rascunho — só admin vê</option>
             </select>
           </div>
         </div>
@@ -5181,6 +5190,7 @@
         const mcat = !cat || cat === "__sem_cat__" || p["Categoria"] === cat;
         let mst;
         if (stat === "__sem_cat__") mst = !String(p["Categoria"] || "").trim();
+        else if (stat === "__rascunho__") mst = String(p["Publicado"] || "").trim().toLowerCase() === "não";
         else mst = !stat || p["Status"] === stat;
         return mq && mcat && mst;
       });
@@ -5189,6 +5199,7 @@
       el.innerHTML = list.map(p => {
         const img = p["Imagem 1 (URL)"] || "";
         const ativo = p["Status"] === "Ativo";
+        const rascunho = String(p["Publicado"] || "").trim().toLowerCase() === "não";
         const custo = Number(p["Custo_Unitario"] || 0);
         const venda = Number(p["Preço (R$)"] || 0);
         const temCusto = custo > 0;
@@ -5197,6 +5208,7 @@
       <div class="pthumb">
         ${img ? `<img src="${img}" onerror="this.style.display='none'">` : "📦"}
         <span class="pstatus-badge ${ativo ? "on" : "off"}">${ativo ? "Ativo" : "Inativo"}</span>
+        ${rascunho ? `<span class="pstatus-badge" style="left:6px;right:auto;top:6px;background:rgba(255,183,77,.85);color:#3a1f00">📝 Rascunho</span>` : ""}
       </div>
       <div class="pinfo">
         <div class="pnm">${p["Nome do Produto"] || "—"}</div>
@@ -5223,6 +5235,7 @@
       ["fnome", "fdesc", "fvar", "fpag", "fpreco", "fpromo", "festoque", "fparcelas", "fforn", "fgarantia", "ftags", "fCustoUnit"].forEach(id => document.getElementById(id).value = "");
       document.getElementById("fcat").value = "";
       document.getElementById("fstatus").value = "Ativo";
+      document.getElementById("fpublicado").value = "Sim";
       document.getElementById("fdest").value = "Não";
       document.getElementById("previews").innerHTML = "";
       document.getElementById("urlin").value = "";
@@ -5239,6 +5252,7 @@
       document.getElementById("fnome").value = p["Nome do Produto"] || "";
       document.getElementById("fcat").value = p["Categoria"] || "";
       document.getElementById("fstatus").value = p["Status"] || "Ativo";
+      document.getElementById("fpublicado").value = String(p["Publicado"] || "").trim().toLowerCase() === "não" ? "Não" : "Sim";
       document.getElementById("fpreco").value = p["Preço (R$)"] || "";
       document.getElementById("fpromo").value = p["Preço Promo (R$)"] || "";
       document.getElementById("festoque").value = p["Estoque"] || "";
@@ -5410,6 +5424,7 @@
         "Nome do Produto": nome,
         "Categoria": cat,
         "Status": document.getElementById("fstatus").value,
+        "Publicado": document.getElementById("fpublicado").value,
         "Preço (R$)": preco,
         "Preço Promo (R$)": document.getElementById("fpromo").value,
         "Estoque": document.getElementById("festoque").value,
