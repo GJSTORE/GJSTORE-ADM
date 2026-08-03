@@ -9294,6 +9294,11 @@
         (b["Data/Hora"] || "").localeCompare(a["Data/Hora"] || "")
       );
 
+      // Compartilhar pedidos abertos selecionados (texto+imagem no WhatsApp)
+      _vcPedCache = {};
+      _vcSelecionados = new Set();
+      _vcClienteAtual = { nome, tel };
+
       const pedRows = sortedPeds.map(p => {
         const bid = p["ID Pedido"] || "";
         const baixas = baixasByPed[bid] || [];
@@ -9320,7 +9325,16 @@
             : `<span style="color:#ffb74d">⏳ ${sc || "Pendente"}</span>`;
         }
 
-        const itens = (p["Itens"] || p["Itens (JSON)"] || "").split("|").filter(Boolean).slice(0, 2);
+        // BUG-VERCOMPRAS-ITENS-CRU (2026-08-03): faltava tentar JSON.parse antes do split("|") — itens novos
+        // vêm como JSON e viravam a string crua inteira na tela (ex: [{"nome":"..."​,"qtd":1,"valor":..}])
+        const itensRawVc = p["Itens (JSON)"] || p["Itens"] || "";
+        const itens = (() => {
+          try {
+            const arr = JSON.parse(itensRawVc);
+            if (Array.isArray(arr)) return arr.map(i => `${i.nome || i.name || "?"}${(i.qtd || i.qty || 1) > 1 ? ` x${i.qtd || i.qty}` : ""}`).slice(0, 2);
+          } catch (e) {}
+          return String(itensRawVc).split("|").filter(Boolean).slice(0, 2);
+        })();
         const parcelasHtml = qtdParcelas > 1
           ? `<div style="font-size:11px;color:var(--muted);margin-top:3px">📋 ${qtdParcelas}x · ${qtdPagas} paga(s)${qtdPend > 0 ? ` · <span style="color:var(--r)">${qtdPend} pendente(s)</span>` : ""}</div>`
           : "";
@@ -9335,9 +9349,14 @@
             </div>`
           : "";
 
+        const aberto = sc !== "Finalizado" && sc !== "Cancelado";
+        if (aberto) _vcPedCache[bid] = { id: bid, itensTxt: itens.join(", ") || "—", total: totalPed, saldo, statusTxt: sc === "Entregue" ? "Entregue" : (sc || "Pendente") };
         return `<div style="background:var(--d3);border-radius:10px;padding:10px 12px;margin-bottom:8px">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
-            <span style="font-size:11px;font-weight:700;color:var(--c)">#${bid}</span>
+            <span style="display:flex;align-items:center;gap:6px">
+              ${aberto ? `<input type="checkbox" class="vc-sel" data-ped="${bid}" onchange="_vcToggleSel('${bid}',this.checked)" style="width:15px;height:15px;accent-color:var(--g);cursor:pointer">` : ""}
+              <span style="font-size:11px;font-weight:700;color:var(--c)">#${bid}</span>
+            </span>
             <span style="font-size:11px;color:var(--muted)">${fmtDT(p["Data/Hora"])}</span>
           </div>
           ${itens.length ? `<div style="font-size:12px;color:var(--txt);margin-bottom:4px">${itens.join(" · ")}</div>` : ""}
@@ -9364,10 +9383,71 @@
       document.getElementById("scoreModalActions").innerHTML =
         `<button onclick="openClienteDetalhe(${idx})" style="background:var(--d3);border:1px solid var(--brd);color:var(--c);font-size:13px;font-weight:600;padding:8px 14px;border-radius:10px;cursor:pointer;width:100%">← Voltar</button>`;
 
+      const temAbertos = Object.keys(_vcPedCache).length > 0;
       document.getElementById("scoreModalContent").innerHTML = `
         <div style="font-weight:700;font-size:13px;margin-bottom:10px">📋 Compras de ${nome} (${clientPeds.length})</div>
         ${totalPendente > 0 ? `<div style="background:rgba(255,152,0,.1);border:1px solid rgba(255,152,0,.3);border-radius:10px;padding:10px 12px;margin-bottom:12px;font-size:13px;color:#ffb74d">⚠️ Total pendente: <b>${fmt(totalPendente)}</b></div>` : ""}
+        ${temAbertos ? `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;font-size:11px;color:var(--muted)">
+          <span>☑️ Marque os pedidos abertos que quer mandar</span>
+          <button id="vcShareBtn" onclick="_vcCompartilhar()" disabled style="background:rgba(37,211,102,.15);border:1px solid rgba(37,211,102,.3);color:#25d366;font-size:11px;font-weight:700;padding:6px 12px;border-radius:8px;cursor:pointer;opacity:.4">💬 Compartilhar (<span id="vcSelCount">0</span>)</button>
+        </div>` : ""}
         ${pedRows || `<div style="color:var(--muted);text-align:center;padding:24px 0;font-size:13px">Nenhum pedido encontrado para este cliente.</div>`}`;
+    }
+
+    // Compartilhar pedidos abertos selecionados — texto + imagem (mesmo padrão do recibo, W3)
+    let _vcPedCache = {}, _vcSelecionados = new Set(), _vcClienteAtual = null;
+    function _vcToggleSel(id, checked) {
+      if (checked) _vcSelecionados.add(id); else _vcSelecionados.delete(id);
+      const btn = document.getElementById("vcShareBtn");
+      const cnt = document.getElementById("vcSelCount");
+      if (cnt) cnt.textContent = _vcSelecionados.size;
+      if (btn) { btn.disabled = _vcSelecionados.size === 0; btn.style.opacity = _vcSelecionados.size ? "1" : ".4"; }
+    }
+    async function _vcCompartilhar() {
+      if (!_vcSelecionados.size || !_vcClienteAtual) return;
+      const itens = Array.from(_vcSelecionados).map(id => _vcPedCache[id]).filter(Boolean);
+      const { nome, tel } = _vcClienteAtual;
+      const totalGeral = itens.reduce((s, i) => s + i.saldo, 0);
+      const textoLinhas = [
+        `🧾 *Pedidos em aberto — ${nome}*`, ``,
+        ...itens.map(i => `📋 #${i.id} — ${i.itensTxt}\n${i.statusTxt} · ${fmt(i.saldo)} a pagar`),
+        ``, `💰 *Total em aberto: ${fmt(totalGeral)}*`, ``,
+        `_${_storeName || "GJ Store"} — mensagem automática_`
+      ];
+      const texto = textoLinhas.join("\n");
+      // Card oculto pra capturar em imagem
+      const card = document.createElement("div");
+      card.style.cssText = "position:fixed;left:-9999px;top:0;width:360px;background:#04090f;padding:20px;font-family:'Inter',sans-serif;color:#e2f4ff";
+      card.innerHTML = `
+        <div style="font-size:16px;font-weight:900;color:#00e676;margin-bottom:2px">🧾 Pedidos em aberto</div>
+        <div style="font-size:13px;font-weight:700;margin-bottom:14px">${nome}</div>
+        ${itens.map(i => `<div style="background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:10px;padding:10px 12px;margin-bottom:8px">
+          <div style="display:flex;justify-content:space-between;font-size:11px;color:#8899aa;margin-bottom:3px"><span>#${i.id}</span><span>${i.statusTxt}</span></div>
+          <div style="font-size:12px;margin-bottom:4px">${i.itensTxt}</div>
+          <div style="font-size:14px;font-weight:800;color:#ff9800">${fmt(i.saldo)} a pagar</div>
+        </div>`).join("")}
+        <div style="margin-top:10px;padding-top:10px;border-top:1px solid rgba(255,255,255,.1);display:flex;justify-content:space-between;align-items:center">
+          <span style="font-size:11px;color:#8899aa">TOTAL EM ABERTO</span>
+          <span style="font-size:18px;font-weight:900;color:#00e676">${fmt(totalGeral)}</span>
+        </div>`;
+      document.body.appendChild(card);
+      try {
+        if (!window.html2canvas) await loadScript("https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js");
+        const canvas = await html2canvas(card, { scale: 2.5, backgroundColor: "#04090f", useCORS: true, logging: false });
+        canvas.toBlob(blob => {
+          const file = new File([blob], `pedidos-${nome.replace(/\s+/g,"-")}.png`, { type: "image/png" });
+          if (navigator.canShare && navigator.canShare({ files: [file] })) {
+            navigator.share({ files: [file], text: texto, title: "Pedidos em aberto" }).catch(() => {});
+          } else {
+            const a = document.createElement("a");
+            a.href = URL.createObjectURL(blob);
+            a.download = `pedidos-${nome.replace(/\s+/g,"-")}.png`;
+            a.click();
+            if (tel) window.open(`https://wa.me/55${tel}?text=${encodeURIComponent(texto)}`, "_blank");
+          }
+        }, "image/png");
+      } catch(e) { toast("Erro ao gerar imagem", "err"); }
+      finally { card.remove(); }
     }
 
     // ═══════════════════════════════════════════════
