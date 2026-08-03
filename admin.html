@@ -9029,14 +9029,15 @@
       } catch(e) {}
     }
 
-    async function deleteCat(id, nome) {
-      if (!confirm(`Excluir categoria "${nome}"?`)) return;
-      allCats = allCats.filter(c => c.ID !== id);
-      saveCatsToStorage(allCats);
-      populateCatSelects();
-      renderCatPage();
-      toast("Categoria removida");
-      try { await apiGet("deletarCategoria", { id }); } catch(e) {}
+    function deleteCat(id, nome) {
+      toastConfirm(`Excluir categoria "${nome}"?`, "🗑️ Excluir", "Cancelar", async () => {
+        allCats = allCats.filter(c => c.ID !== id);
+        saveCatsToStorage(allCats);
+        populateCatSelects();
+        renderCatPage();
+        toast("Categoria removida");
+        try { await apiGet("deletarCategoria", { id }); } catch(e) {}
+      }, () => {});
     }
 
     // ═══════════════════════════════════════════════
@@ -9509,9 +9510,11 @@
         // Melhoria ativação/inativação: confirmar só ao INATIVAR (some da loja) — ativar é seguro/reversível na hora
         if (novoStatus === "Inativo") {
           const prod = allProds.find(p => String(p["ID"]) === toggleBtn.dataset.toggleId);
-          if (!confirm(`Inativar "${prod ? prod["Nome do Produto"] : "produto"}"? Ele some da loja até você reativar.`)) return;
+          toastConfirm(`Inativar "${prod ? prod["Nome do Produto"] : "produto"}"? Ele some da loja até você reativar.`, "🔴 Inativar", "Cancelar",
+            () => toggleProd(toggleBtn.dataset.toggleId, novoStatus), () => {});
+        } else {
+          toggleProd(toggleBtn.dataset.toggleId, novoStatus);
         }
-        toggleProd(toggleBtn.dataset.toggleId, novoStatus);
       }
     });
 
@@ -9578,24 +9581,27 @@
       }
     });
 
-    async function toggleCat(cat) {
+    function toggleCat(cat) {
       const novoStatus = (cat.Status || "Ativo") === "Ativo" ? "Inativo" : "Ativo";
+      const executar = async () => {
+        try {
+          const res = await apiGet("toggleCategoria", { id: cat.ID, nome: cat.Nome, emoji: cat.Emoji, cor: cat.Cor_Hex, status: novoStatus });
+          if (res.ok) {
+            cat.Status = novoStatus;
+            const n = res.afetados || 0;
+            const label = novoStatus === "Ativo"
+              ? `Categoria ativada ✅${n ? ` · ${n} produto(s) reativado(s)` : ""}`
+              : `Categoria inativada 🔴${n ? ` · ${n} produto(s) ocultado(s)` : ""}`;
+            toast(label); renderCatPage();
+            allProds = []; await loadProds(); // cascata mexeu nos produtos
+          } else toast(res.error || "Erro", "err");
+        } catch (e) { toast("Erro de conexão", "err"); }
+      };
       if (novoStatus === "Inativo") {
         const qtd = (allProds || []).filter(p => p["Status"] !== "Inativo" && (p["Categoria"] || "").trim() === cat.Nome).length;
-        if (qtd > 0 && !confirm(`⚠️ Inativar "${cat.Nome}" vai ocultar ${qtd} produto(s) do site até você reativar. Continuar?`)) return;
+        if (qtd > 0) { toastConfirm(`⚠️ Inativar "${cat.Nome}" vai ocultar ${qtd} produto(s) do site até você reativar. Continuar?`, "🔴 Inativar", "Cancelar", executar, () => {}); return; }
       }
-      try {
-        const res = await apiGet("toggleCategoria", { id: cat.ID, nome: cat.Nome, emoji: cat.Emoji, cor: cat.Cor_Hex, status: novoStatus });
-        if (res.ok) {
-          cat.Status = novoStatus;
-          const n = res.afetados || 0;
-          const label = novoStatus === "Ativo"
-            ? `Categoria ativada ✅${n ? ` · ${n} produto(s) reativado(s)` : ""}`
-            : `Categoria inativada 🔴${n ? ` · ${n} produto(s) ocultado(s)` : ""}`;
-          toast(label); renderCatPage();
-          allProds = []; await loadProds(); // cascata mexeu nos produtos
-        } else toast(res.error || "Erro", "err");
-      } catch (e) { toast("Erro de conexão", "err"); }
+      executar();
     }
 
     // ═══════════════════════════════════════════════════════════════
@@ -10464,16 +10470,17 @@
       btn.disabled = false; btn.textContent = "💾 Salvar";
     }
 
-    async function deletarCliente(id, nome) {
+    function deletarCliente(id, nome) {
       if (!id) { toast("Cliente sem ID (importado do histórico). Não é possível deletar.", "err"); return; }
-      const adminSenha = prompt("Confirme a SENHA DE ADMIN para excluir cliente:");
-      if (adminSenha === null) return;
-      if (!confirm(`Remover "${nome}" da base de clientes?`)) return;
-      try {
-        const r = await apiGet("deletarCliente", { id, adminSenha });
-        if (r.ok) { toast("Cliente removido ✅"); _allClientes = []; loadClientes(); }
-        else toast(r.error || "Erro ao remover", "err");
-      } catch(e) { toast("Erro de conexão", "err"); }
+      toastConfirm(`Remover "${nome}" da base de clientes?`, "🗑️ Remover", "Cancelar", async () => {
+        const adminSenha = prompt("Confirme a SENHA DE ADMIN para excluir cliente:");
+        if (adminSenha === null) return;
+        try {
+          const r = await apiGet("deletarCliente", { id, adminSenha });
+          if (r.ok) { toast("Cliente removido ✅"); _allClientes = []; loadClientes(); }
+          else toast(r.error || "Erro ao remover", "err");
+        } catch(e) { toast("Erro de conexão", "err"); }
+      }, () => {});
     }
 
     // ═══════════════════════════════════════════════════════════════
@@ -10623,16 +10630,17 @@
       } catch(e) { document.getElementById("parcelasResumo").innerHTML = `<div style="grid-column:1/-1;color:var(--r)">Erro ao carregar parcelas.</div>`; }
     }
 
-    async function darBaixaParcela(idPedido, idx, valor, nomeCliente) {
-      if (!confirm(`Confirmar baixa de ${fmt(valor)} para parcela ${idx+1}?`)) return;
-      try {
-        const r = await apiGet("darBaixa", {
-          idPedido, valorPago: valor, statusPagamento: "Pago",
-          nomeCliente, valorOriginal: valor, diasAtraso: 0
-        });
-        if (r.ok) { toast("Baixa registrada ✅"); verParcelas(idPedido, nomeCliente); }
-        else toast(r.error || "Erro ao dar baixa", "err");
-      } catch(e) { toast("Erro de conexão", "err"); }
+    function darBaixaParcela(idPedido, idx, valor, nomeCliente) {
+      toastConfirm(`Confirmar baixa de ${fmt(valor)} para parcela ${idx+1}?`, "✅ Confirmar", "Cancelar", async () => {
+        try {
+          const r = await apiGet("darBaixa", {
+            idPedido, valorPago: valor, statusPagamento: "Pago",
+            nomeCliente, valorOriginal: valor, diasAtraso: 0
+          });
+          if (r.ok) { toast("Baixa registrada ✅"); verParcelas(idPedido, nomeCliente); }
+          else toast(r.error || "Erro ao dar baixa", "err");
+        } catch(e) { toast("Erro de conexão", "err"); }
+      }, () => {});
     }
 
     initTheme();
