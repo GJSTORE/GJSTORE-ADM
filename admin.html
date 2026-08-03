@@ -3122,6 +3122,12 @@
       <div class="dsec">
         <div class="dtitle" onclick="toggleAcc('acc-aband')">Carrinhos Abandonados 🛒 <span class="acc-chevron" id="chev-acc-aband">▼</span></div>
         <div class="acc-body" id="acc-aband" style="max-height:0px">
+          <div style="display:flex;gap:5px;margin-bottom:8px;flex-wrap:wrap" onclick="event.stopPropagation()">
+            <button class="hp-filter" data-abd="7" onclick="loadAband('7',this)">7d</button>
+            <button class="hp-filter on" data-abd="30" onclick="loadAband('30',this)">30d</button>
+            <button class="hp-filter" data-abd="90" onclick="loadAband('90',this)">90d</button>
+            <button class="hp-filter" data-abd="todos" onclick="loadAband('todos',this)">Tudo</button>
+          </div>
           <div id="daband"><div class="empty" style="color:var(--muted)">Carregando...</div></div>
         </div>
       </div>
@@ -4688,6 +4694,7 @@
 
     // HOME
     let homeFilter = "30";
+    let _abandDias = "30";
     // W2/W3: texto de cobrança pronto — atrasado usa tom mais firme, a vencer é lembrete gentil
     function _cobrancaMsg(c) {
       const nome = c.nome || "Cliente";
@@ -8215,18 +8222,23 @@
       _onlineCheckInterval = setInterval(check, 120000);
     }
 
-    async function loadAband() {
+    async function loadAband(dias, btn) {
       const el = document.getElementById("daband");
       if (!el) return;
+      if (btn) {
+        document.querySelectorAll("[data-abd]").forEach(b => b.classList.toggle("on", b === btn));
+        _abandDias = dias;
+      }
+      el.innerHTML = `<div class="empty" style="color:var(--muted)">Carregando...</div>`;
       try {
-        const r = await apiGet("getCarrinhosAbandonados").catch(() => null);
+        const r = await apiGet("getCarrinhosAbandonados", { dias: dias || _abandDias || "30" }).catch(() => null);
         if (!r || r.error || !r.carrinhos) {
           el.innerHTML = `<div class="empty" style="color:var(--muted)">Sem carrinhos abandonados</div>`;
           return;
         }
         const carrinhos = r.carrinhos || [];
         if (!carrinhos.length) {
-          el.innerHTML = `<div class="empty" style="color:var(--g)">✅ Nenhum carrinho abandonado!</div>`;
+          el.innerHTML = `<div class="empty" style="color:var(--g)">✅ Nenhum carrinho abandonado no período!</div>`;
           return;
         }
         el.innerHTML = carrinhos.map(c => {
