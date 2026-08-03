@@ -981,13 +981,16 @@
     }
 
     /* G7/melhoria produtos+clientes (2026-08-03): grade responsiva — 2 col mobile, 4 col telas maiores */
-    .plist, .cli-grid {
+    .plist, .cli-grid, .catlist-grid {
       display: grid;
       grid-template-columns: repeat(2, 1fr);
       gap: 10px
     }
+    /* min-width:0 é essencial em item de grid — sem isso o conteúdo intrínseco (botões, texto) força a
+       coluna a crescer além do 1fr e o card "vaza"/corta visualmente na borda (bug relatado 2026-08-03) */
+    .plist > *, .cli-grid > *, .catlist-grid > * { min-width: 0; }
     @media (min-width: 720px) {
-      .plist, .cli-grid { grid-template-columns: repeat(4, 1fr); }
+      .plist, .cli-grid, .catlist-grid { grid-template-columns: repeat(4, 1fr); }
     }
 
     .pcard {
@@ -3438,6 +3441,12 @@
             <button class="mkt-btn mb-dl" id="mktBulkDlBtn" style="min-width:0;padding:8px 14px;font-size:12px" onclick="mktBulkDownload()">⬇️ Imagens</button>
           </div>
         </div>
+        <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap">
+          <input class="fi" id="mktBulkSearch" placeholder="🔍 Buscar produto..." style="flex:2;min-width:140px;padding:7px 10px;font-size:12px" oninput="mktPopulateBulkGrid()">
+          <select class="fi" id="mktBulkCat" style="flex:1;min-width:120px;padding:7px 10px;font-size:12px" onchange="mktPopulateBulkGrid()">
+            <option value="">Todas categorias</option>
+          </select>
+        </div>
         <div id="mktBulkGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:10px"></div>
         <div id="mktBulkProgress" style="display:none;margin-top:12px;font-size:12px;color:var(--c);font-weight:700;text-align:center;padding:10px;background:rgba(0,188,212,.08);border-radius:10px;border:1px solid rgba(0,188,212,.2)"></div>
       </div>
@@ -3487,7 +3496,7 @@
           <button class="savebtn" style="background:var(--d3);flex:0 0 auto;padding:10px 14px" onclick="closeCatForm()">Cancelar</button>
         </div>
       </div>
-      <div id="catList"><div class="loading"><div class="spin"></div>Carregando...</div></div>
+      <div id="catList" class="catlist-grid"><div class="loading"><div class="spin"></div>Carregando...</div></div>
     </div>
 
     <!-- PAGE: SCORE DE CLIENTES -->
@@ -4327,6 +4336,7 @@
     let TOKEN = "";
     let _loginTipo = "admin";
     let allProds = [], allPeds = [];
+    let _allProdsFull = false; // true só quando carregado com verTodos=1 (inclui Inativo)
     let mediaUrls = [];
     let dragId = null;
     let pedOffset = 0;
@@ -4758,7 +4768,7 @@
         renderCobrancas(cb && cb.ok ? cb.cobrancas : []);
         const prods = (pr && Array.isArray(pr.produtos)) ? pr.produtos : [];
         const peds  = (pp && Array.isArray(pp.pedidos))  ? pp.pedidos  : [];
-        allProds = prods; allPeds = peds;
+        allProds = prods; allPeds = peds; _allProdsFull = false; // home só traz Ativos — força reload com verTodos ao abrir Produtos
 
         if (rp && !rp.error) {
           document.getElementById("s1").textContent = rp.pedidosHoje ?? "—";
@@ -5121,9 +5131,13 @@
 
     // PRODUTOS
     async function loadProds() {
-      if (!allProds.length) {
+      // Bug real (2026-08-03): Home carrega allProds SEM verTodos (só ativos). Se a Produtos
+      // abrisse depois, via `!allProds.length` achava que já tinha dado e nunca recarregava com
+      // verTodos=1 — inativos nunca entravam na memória, filtro categoria+inativo sempre vazio.
+      if (!allProds.length || !_allProdsFull) {
         const r = await apiGet("getProdutos", { verTodos: "1" }).catch(() => ({ produtos: [] }));
         allProds = r.produtos || [];
+        _allProdsFull = true;
       }
       renderProds();
     }
@@ -7538,9 +7552,22 @@
         grid.innerHTML = `<div style="color:var(--muted);font-size:12px;padding:16px 0;text-align:center">Carregando produtos...</div>`;
         return;
       }
-      const prods = allProds.filter(p => p["Status"] !== "Inativo");
+      // Busca + filtro de categoria (2026-08-03) — reduz a listagem, mais fácil achar produto
+      const catSel = document.getElementById("mktBulkCat");
+      if (catSel && catSel.options.length <= 1) {
+        const cats = [...new Set(allProds.map(p => p["Categoria"]).filter(Boolean))].sort();
+        catSel.innerHTML = `<option value="">Todas categorias</option>` + cats.map(c => `<option value="${c}">${c}</option>`).join("");
+      }
+      const q = (document.getElementById("mktBulkSearch")?.value || "").toLowerCase().trim();
+      const catF = document.getElementById("mktBulkCat")?.value || "";
+      const prods = allProds.filter(p => {
+        if (p["Status"] === "Inativo") return false;
+        if (catF && p["Categoria"] !== catF) return false;
+        if (q && !(p["Nome do Produto"] || "").toLowerCase().includes(q)) return false;
+        return true;
+      });
       if (!prods.length) {
-        grid.innerHTML = `<div style="color:var(--muted);font-size:12px;padding:16px 0">Nenhum produto ativo</div>`;
+        grid.innerHTML = `<div style="color:var(--muted);font-size:12px;padding:16px 0">Nenhum produto encontrado</div>`;
         return;
       }
       grid.innerHTML = prods.map(p => {
@@ -8989,20 +9016,27 @@
       const el = document.getElementById("catList");
       if (!el) return;
       if (!allCats.length) { el.innerHTML = `<div class="empty">Nenhuma categoria ainda.</div>`; return; }
-      el.innerHTML = allCats.map(c => `
-        <div class="cat-card">
-          <div class="cat-ico-preview" style="background:${c.Cor_Hex || "#333"}22;color:${c.Cor_Hex || "var(--g)"}">
-            ${c.Emoji || "📦"}
+      // Melhoria (2026-08-03): grade 2/4 col + contagem de produtos por categoria (conta TODOS, ativo+inativo)
+      const contPorCat = {};
+      (allProds || []).forEach(p => { const cat = p["Categoria"] || ""; if (cat) contPorCat[cat] = (contPorCat[cat] || 0) + 1; });
+      el.innerHTML = allCats.map(c => {
+        const qtd = contPorCat[c.Nome] || 0;
+        const ativo = (c.Status || "Ativo") === "Ativo";
+        return `
+        <div class="cat-card" style="flex-direction:column;align-items:flex-start;gap:6px;min-width:0;width:100%;box-sizing:border-box">
+          <div style="display:flex;align-items:center;gap:8px;width:100%;min-width:0">
+            <div class="cat-ico-preview" style="background:${c.Cor_Hex || "#333"}22;color:${c.Cor_Hex || "var(--g)"};flex-shrink:0">${c.Emoji || "📦"}</div>
+            <div style="min-width:0;flex:1">
+              <div class="cat-name" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${c.Nome}</div>
+              <div class="cat-status" style="color:${ativo ? "var(--muted)" : "var(--r)"}">${c.Status || "Ativo"} · ${qtd} produto${qtd !== 1 ? "s" : ""}</div>
+            </div>
           </div>
-          <div class="cat-info">
-            <div class="cat-name">${c.Nome}</div>
-            <div class="cat-status">${c.Status || "Ativo"}</div>
+          <div class="cat-actions" style="width:100%">
+            <button class="cat-btn cat-edit-btn" data-cat-id="${c.ID}" style="flex:1;min-width:0">✏️ Editar</button>
+            <button class="cat-btn cat-toggle-btn" data-cat-id="${c.ID}" data-cat-status="${c.Status || 'Ativo'}" title="${ativo ? 'Inativar' : 'Ativar'}" style="flex:1;min-width:0;color:${ativo?'var(--r)':'#00c853'}">${ativo ? "🔴 Inativar" : "🟢 Ativar"}</button>
           </div>
-          <div class="cat-actions">
-            <button class="cat-btn cat-edit-btn" data-cat-id="${c.ID}">✏️</button>
-            <button class="cat-btn cat-toggle-btn" data-cat-id="${c.ID}" data-cat-status="${c.Status || 'Ativo'}" title="${(c.Status || 'Ativo') === 'Ativo' ? 'Inativar' : 'Ativar'}" style="color:${(c.Status||'Ativo')==='Ativo'?'var(--r)':'#00c853'}">${(c.Status || "Ativo") === "Ativo" ? "🔴" : "🟢"}</button>
-          </div>
-        </div>`).join("");
+        </div>`;
+      }).join("");
     }
 
     function openCatForm(c) {
@@ -10303,28 +10337,28 @@
           const alerta = sc !== null && sc < 600 ? `<div style="font-size:10px;color:var(--r);margin-top:3px">⛔ Bloquear venda a prazo</div>` :
                          sc !== null && sc < 900 ? `<div style="font-size:10px;color:#ffd600;margin-top:3px">⚠️ Atrasos esporádicos</div>` : "";
           const soScore = c._soScore ? `<span style="font-size:10px;color:var(--muted);background:var(--d3);padding:1px 6px;border-radius:4px">histórico</span>` : "";
-          return `<div class="cat-card" style="flex-direction:column;align-items:flex-start;gap:6px;cursor:pointer"
+          return `<div class="cat-card" style="flex-direction:column;align-items:flex-start;gap:6px;cursor:pointer;min-width:0;width:100%;box-sizing:border-box;overflow:hidden"
               onclick="openClienteDetalhe(${realIdx})">
-            <div style="display:flex;align-items:flex-start;justify-content:space-between;width:100%;gap:8px">
-              <div style="min-width:0">
-                <div style="font-family:var(--H);font-weight:800;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${nome} ${soScore}</div>
-                ${telRaw ? `<div style="font-size:12px;color:var(--muted);margin-top:2px">📱 ${telRaw}</div>` : ""}
+            <div style="display:flex;align-items:flex-start;justify-content:space-between;width:100%;gap:8px;min-width:0">
+              <div style="min-width:0;flex:1">
+                <div style="font-family:var(--H);font-weight:800;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${nome} ${soScore}</div>
+                ${telRaw ? `<div style="font-size:11px;color:var(--muted);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">📱 ${telRaw}</div>` : ""}
               </div>
               <div style="display:flex;flex-direction:column;align-items:flex-end;gap:3px;flex-shrink:0">
                 ${scoreBadgeHtml}
               </div>
             </div>
-            <div style="display:flex;gap:10px;font-size:12px;color:var(--muted);flex-wrap:wrap">
-              ${pedidosQty ? `<span>🛍️ ${pedidosQty} pedido(s)</span>` : ""}
-              ${nBaixas ? `<span>💳 ${nBaixas} transação(ões)</span>` : ""}
+            <div style="display:flex;gap:8px;font-size:11px;color:var(--muted);flex-wrap:wrap;width:100%;min-width:0">
+              ${pedidosQty ? `<span>🛍️ ${pedidosQty}</span>` : ""}
+              ${nBaixas ? `<span>💳 ${nBaixas}</span>` : ""}
               ${totalGasto ? `<span style="color:var(--g)">💰 ${fmt(totalGasto)}</span>` : ""}
             </div>
             ${alerta}
-            <!-- Ações rápidas no card -->
-            <div style="display:flex;gap:6px;margin-top:4px;flex-wrap:wrap" onclick="event.stopPropagation()">
-              ${telRaw ? `<a href="https://wa.me/55${telRaw.replace(/\D/g,'')}" target="_blank" style="display:inline-flex;align-items:center;gap:4px;flex:none;padding:5px 10px;border-radius:7px;border:1px solid rgba(37,211,102,.3);background:rgba(37,211,102,.12);color:#25d366;font:700 11px var(--B);text-decoration:none;cursor:pointer">💬 WhatsApp</a>` : ""}
-              ${!c._soScore ? `<button onclick="openClienteForm(_allClientes[${realIdx}])" style="display:inline-flex;align-items:center;gap:4px;flex:none;padding:5px 10px;border-radius:7px;border:1px solid rgba(0,188,212,.3);background:rgba(0,188,212,.12);color:var(--c);font:700 11px var(--B);cursor:pointer">✏️ Editar</button>` : ""}
-              ${!c._soScore ? `<button onclick="deletarCliente('${(c.ID_Cliente||c.id||"").replace(/'/g,"\\'")}','${(c.nome||c.Nome||"").replace(/'/g,"\\'")}');" style="display:inline-flex;align-items:center;gap:4px;flex:none;padding:5px 10px;border-radius:7px;border:1px solid rgba(244,67,54,.3);background:rgba(244,67,54,.12);color:var(--r);font:700 11px var(--B);cursor:pointer">🗑️ Excluir</button>` : ""}
+            <!-- Ações rápidas no card — flex:1 c/ min-width:0 pra não estourar a coluna, quebra linha se precisar -->
+            <div style="display:flex;gap:5px;margin-top:4px;flex-wrap:wrap;width:100%" onclick="event.stopPropagation()">
+              ${telRaw ? `<a href="https://wa.me/55${telRaw.replace(/\D/g,'')}" target="_blank" style="flex:1;min-width:64px;display:inline-flex;align-items:center;justify-content:center;gap:3px;padding:5px 6px;border-radius:7px;border:1px solid rgba(37,211,102,.3);background:rgba(37,211,102,.12);color:#25d366;font:700 10px var(--B);text-decoration:none;cursor:pointer;white-space:nowrap">💬 Zap</a>` : ""}
+              ${!c._soScore ? `<button onclick="openClienteForm(_allClientes[${realIdx}])" style="flex:1;min-width:64px;display:inline-flex;align-items:center;justify-content:center;gap:3px;padding:5px 6px;border-radius:7px;border:1px solid rgba(0,188,212,.3);background:rgba(0,188,212,.12);color:var(--c);font:700 10px var(--B);cursor:pointer;white-space:nowrap">✏️ Editar</button>` : ""}
+              ${!c._soScore ? `<button onclick="deletarCliente('${(c.ID_Cliente||c.id||"").replace(/'/g,"\\'")}','${(c.nome||c.Nome||"").replace(/'/g,"\\'")}');" style="flex:1;min-width:64px;display:inline-flex;align-items:center;justify-content:center;gap:3px;padding:5px 6px;border-radius:7px;border:1px solid rgba(244,67,54,.3);background:rgba(244,67,54,.12);color:var(--r);font:700 10px var(--B);cursor:pointer;white-space:nowrap">🗑️ Excl.</button>` : ""}
             </div>
           </div>`;
         }).join("") + `</div>`;
