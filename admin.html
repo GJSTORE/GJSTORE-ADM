@@ -4323,6 +4323,7 @@
     let _onlineCheckInterval = null;
     const TAXA_PADRAO = 0.33;
 
+    // G1/G2: timeout + erro real (sem isso, GAS lento trava sem aviso e o catch genérico esconde a causa)
     async function apiGet(action, params = {}) {
       const url = new URL(API);
       url.searchParams.set("action", action);
@@ -4330,9 +4331,17 @@
       Object.entries(params).forEach(([k, v]) => {
         if (v !== undefined && v !== null) url.searchParams.set(k, String(v));
       });
-      const res = await fetch(url.toString(), { cache: "no-store" });
-      if (!res.ok) throw new Error("HTTP " + res.status);
-      return res.json();
+      const ctrl = new AbortController();
+      const timer = setTimeout(() => ctrl.abort(), 20000);
+      try {
+        const res = await fetch(url.toString(), { cache: "no-store", signal: ctrl.signal });
+        if (!res.ok) throw new Error("HTTP " + res.status);
+        return await res.json();
+      } catch (e) {
+        throw new Error(e.name === "AbortError" ? "Timeout (20s) em " + action : e.message);
+      } finally {
+        clearTimeout(timer);
+      }
     }
 
     // POST text/plain (dados sensíveis fora da query, que o GAS loga). action vai no body.
@@ -10116,7 +10125,7 @@
         });
 
         renderClientesList(_allClientes);
-      } catch(e) { if (el) el.innerHTML = `<div class="empty" style="color:var(--r)">Erro ao carregar.</div>`; }
+      } catch(e) { if (el) el.innerHTML = `<div class="empty" style="color:var(--r)">Erro ao carregar: ${e.message || "verifique a conexão"}. <button onclick="loadClientes()" style="background:var(--g);color:#04140b;border:none;border-radius:6px;padding:4px 10px;font-size:11px;font-weight:700;cursor:pointer;margin-left:6px">🔄 Tentar de novo</button></div>`; }
       finally { _clientesCarregando = false; }
     }
 
