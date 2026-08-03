@@ -649,6 +649,19 @@ function apiGet(action, params = {}) {
 function fmt(v) {
   return "R$ " + Number(v || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 });
 }
+// W1: frases variadas de agradecimento — evita recibo sempre igual. quitado=true usa tom de celebração
+function _fraseAgradecimento(quitado) {
+  const quit = ["🎉 *Pedido quitado!* Muito obrigado pela confiança, conte sempre com a gente 💚",
+    "🎉 Tudo pago! Foi um prazer atender você — volte sempre 🛒",
+    "✅ Quitado com sucesso! Obrigado por fechar negócio com a GJ Store 🙏",
+    "🎉 Fechamos com chave de ouro! Obrigado pela preferência 💚"];
+  const parcial = ["Obrigado pela preferência 🙏 Qualquer dúvida sobre o saldo, é só chamar!",
+    "Valeu pela confiança! Seguimos à disposição até a última parcela 💚",
+    "Obrigado por manter tudo em dia — conte sempre com a gente 🙏",
+    "Sua confiança é muito importante pra gente. Obrigado! 💚"];
+  const arr = quitado ? quit : parcial;
+  return arr[Math.floor(Math.random() * arr.length)];
+}
 // BUG-RECIBO-DATA-CRUA (2026-08-03): GAS devolve datas como ISO (2026-07-31T07:00:00.000Z) quando
 // vem de objeto Date da planilha. Sem isso, recibo mostra a string crua em vez de dd/mm/aaaa.
 function _rcDate(v) {
@@ -2099,7 +2112,7 @@ async function showRecibo(pedId) {
     if (totalJuros > 0) wppLines.push(`⚠️ Juros totais: ${fmt(totalJuros)}`);
     wppLines.push(quitado ? "🎉 *QUITADO ✅*" : `⚠️ *Saldo devedor: ${fmt(saldo)}*`);
   }
-  wppLines.push("", "─────────────────────", `_${_storeName} — Obrigado pela preferência 🙏_`, _SIG.trim());
+  wppLines.push("", "─────────────────────", `_${_fraseAgradecimento(quitado)}_`, _SIG.trim());
   const wppMsg = encodeURIComponent(wppLines.filter(l => l !== null).join("\n"));
 
   // ── Render ──
@@ -2760,10 +2773,38 @@ async function npSubmit() {
       const newId = res.id || "";
       toast("Pedido criado ✅ · #" + newId, "ok");
       toggleNovoPedido();
+      offerWppConfirmacao(nome, tel, newId, params.itens, forma, params.qtdParcelas, total, params.dataVencimento);
       await loadAll();
     } else toast(res.error || "Erro ao criar pedido", "err");
   } catch { toast("Erro de conexão", "err"); }
   if (btn) { btn.disabled = false; btn.textContent = "✅ Criar Pedido"; }
+}
+
+// W1/Template1: mensagem de confirmação — deixa explícito que a data foi ESCOLHIDA pelo cliente
+function offerWppConfirmacao(nome, tel, idPedido, itensJson, forma, qtdParc, total, dataVenc) {
+  if (!tel) return;
+  let itensTxt = "";
+  try {
+    const arr = JSON.parse(itensJson);
+    itensTxt = Array.isArray(arr) ? arr.map(i => `• ${i.nome}${i.qtd > 1 ? ` x${i.qtd}` : ""}`).join("\n") : "";
+  } catch(e) {}
+  const qp = Number(qtdParc) || 1;
+  const valorParc = qp > 0 ? total / qp : total;
+  const parcTxt = qp > 1 ? `${qp}x de ${fmt(valorParc)}` : fmt(total);
+  const vencTxt = dataVenc ? (() => { try { return new Date(dataVenc + "T12:00:00").toLocaleDateString("pt-BR"); } catch(e) { return dataVenc; } })() : "a combinar";
+  const msg = `Olá ${nome}! 👋\nSeu pedido foi registrado com sucesso!\n\n📋 Pedido #${idPedido}\n📦 ${itensTxt}\n💳 ${forma} — ${parcTxt}\n📅 Primeira parcela vence em: ${vencTxt} ✅\n\nVocê escolheu essa data — fica tranquilo(a), te aviso quando estiver perto do vencimento.\n\nEsperamos que dê tudo certo e você cumpra o combinado 🤝\n\nQualquer dúvida, é só responder aqui!${_SIG}`;
+  const el = document.createElement("div");
+  el.style.cssText = "position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:var(--d2);border:1px solid var(--border);border-radius:14px;padding:14px 16px;z-index:2000;max-width:320px;width:90%;box-shadow:0 8px 30px rgba(0,0,0,.5)";
+  el.innerHTML = `<div style="font-size:12px;font-weight:700;margin-bottom:8px">✅ Pedido criado · Avisar cliente?</div>
+    <div style="font-size:11px;color:var(--muted);background:rgba(255,255,255,.04);border-radius:8px;padding:8px;margin-bottom:10px;max-height:80px;overflow:auto;white-space:pre-wrap">${msg}</div>
+    <div style="display:flex;gap:8px">
+      <button id="_wcOk" style="flex:1;background:rgba(37,211,102,.18);border:none;color:#25d366;padding:8px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer">💬 Enviar</button>
+      <button id="_wcNo" style="flex:1;background:var(--d3);border:none;color:var(--muted);padding:8px;border-radius:8px;font-size:12px;cursor:pointer">Pular</button>
+    </div>`;
+  document.body.appendChild(el);
+  el.querySelector("#_wcOk").onclick = () => { window.open("https://wa.me/55"+tel+"?text="+encodeURIComponent(msg),"_blank"); el.remove(); };
+  el.querySelector("#_wcNo").onclick = () => { el.remove(); };
+  setTimeout(()=>{ if(el.parentNode) el.remove(); }, 10000);
 }
 
 // ── TOAST ─────────────────────────────────────────────────────────

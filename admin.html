@@ -3057,6 +3057,11 @@
       </div>
       <!-- Alertas -->
       <div id="homeAlertas"></div>
+      <!-- Cobranças Pendentes (E4.2/G8/W2/W3) -->
+      <div class="dsec">
+        <div class="dtitle">🔔 Cobranças — quem esqueci / atrasado</div>
+        <div id="homeCobrancas"><div class="loading"><div class="spin"></div>Carregando...</div></div>
+      </div>
       <!-- Top Produtos Vendidos -->
       <div class="dsec">
         <div class="dtitle">🏆 Top Produtos Vendidos</div>
@@ -4342,6 +4347,19 @@
     }
 
     function fmt(v) { const n = Number(v); return "R$ " + (isNaN(n) ? "0,00" : n.toLocaleString("pt-BR", { minimumFractionDigits: 2 })); }
+    // W1: frases variadas de agradecimento — evita recibo sempre igual. quitado=true usa tom de celebração
+    function _fraseAgradecimento(quitado) {
+      const quit = ["🎉 *Pedido quitado!* Muito obrigado pela confiança, conte sempre com a gente 💚",
+        "🎉 Tudo pago! Foi um prazer atender você — volte sempre 🛒",
+        "✅ Quitado com sucesso! Obrigado por fechar negócio com a GJ Store 🙏",
+        "🎉 Fechamos com chave de ouro! Obrigado pela preferência 💚"];
+      const parcial = ["Obrigado pela preferência 🙏 Qualquer dúvida sobre o saldo, é só chamar!",
+        "Valeu pela confiança! Seguimos à disposição até a última parcela 💚",
+        "Obrigado por manter tudo em dia — conte sempre com a gente 🙏",
+        "Sua confiança é muito importante pra gente. Obrigado! 💚"];
+      const arr = quitado ? quit : parcial;
+      return arr[Math.floor(Math.random() * arr.length)];
+    }
     // BUG-RECIBO-DATA-CRUA (2026-08-03): GAS devolve Date como ISO (2026-07-31T07:00:00.000Z) — sem isso, recibo mostra a string crua
     function _rcDate(v) {
       if (!v) return "—";
@@ -4631,6 +4649,42 @@
 
     // HOME
     let homeFilter = "30";
+    // W2/W3: texto de cobrança pronto — atrasado usa tom mais firme, a vencer é lembrete gentil
+    function _cobrancaMsg(c) {
+      const nome = c.nome || "Cliente";
+      const valor = fmt(c.valor);
+      const venc = c.vencimento || "—";
+      const assinatura = "\n\n———————————————\nGJ STORE\n_MENSAGEM AUTOMÁTICA — SISTEMA GJ STORE_";
+      if (c.urgencia === "atrasado") {
+        return `Olá ${nome}! ⏰\nSua parcela do pedido #${c.idPedido} venceu há ${c.diasAtraso} dia${c.diasAtraso > 1 ? "s" : ""}.\n\n📋 Pedido: #${c.idPedido}\n📅 Venceu em: ${venc}\n💰 Valor em aberto: ${valor}\n⚠️ Juros estimados: ${fmt(c.jurosEstimado)} (R$5/dia de atraso)\n\nPara regularizar, é só responder aqui ou chamar a gente 😉` + assinatura;
+      }
+      const diasTxt = c.diasRestantes === 0 ? "vence HOJE" : `vence em ${c.diasRestantes} dia${c.diasRestantes > 1 ? "s" : ""}`;
+      return `Olá ${nome}! Lembrando que sua parcela do pedido #${c.idPedido} ${diasTxt}.\n\n📅 Vencimento: ${venc}\n💰 Valor: ${valor}\n\n⚠️ Após o vencimento, são acrescidos R$5 por dia de atraso.\n\nSe já pagou, desconsidere esta mensagem ✅\nSe precisar de ajuda, é só chamar!` + assinatura;
+    }
+    function renderCobrancas(lista) {
+      const el = document.getElementById("homeCobrancas");
+      if (!el) return;
+      if (!lista || !lista.length) { el.innerHTML = `<div class="empty" style="color:var(--muted)">Nenhuma cobrança pendente 🎉</div>`; return; }
+      const cores  = { atrasado: "#f44336", hoje: "#ff9800", proximo: "#ffc107", futuro: "#8899aa", sem_data: "#8899aa" };
+      const labels = { atrasado: "⚠️", hoje: "🔴 Vence hoje", proximo: "🟡 Próximo", futuro: "🔵 Futuro", sem_data: "— Sem data" };
+      el.innerHTML = lista.slice(0, 15).map(c => {
+        const cor = cores[c.urgencia] || "#8899aa";
+        const lbl = c.urgencia === "atrasado" ? `⚠️ ${c.diasAtraso}d atrasado` : (labels[c.urgencia] || "");
+        const tel = String(c.telefone || "").replace(/\D/g, "");
+        const msg = encodeURIComponent(_cobrancaMsg(c));
+        const wppBtn = tel
+          ? `<a href="https://wa.me/55${tel}?text=${msg}" target="_blank" style="background:#25d366;color:#04140b;border-radius:8px;padding:6px 12px;text-decoration:none;font-size:12px;font-weight:800;white-space:nowrap">💬 Cobrar</a>`
+          : `<span style="font-size:10px;color:var(--muted)">sem tel.</span>`;
+        return `<div style="display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--border)">
+          <div style="flex:1;min-width:0">
+            <div style="font-size:13px;font-weight:700">${c.nome || "—"} <span style="font-weight:400;color:var(--muted);font-size:11px">#${c.idPedido}</span></div>
+            <div style="font-size:11px;color:${cor};font-weight:600">${lbl} · ${c.vencimento || "sem data"}</div>
+          </div>
+          <div style="text-align:right;flex-shrink:0"><div style="font-size:13px;font-weight:800;color:${cor}">${fmt(c.valor)}</div></div>
+          ${wppBtn}
+        </div>`;
+      }).join("") + (lista.length > 15 ? `<div style="text-align:center;font-size:11px;color:var(--muted);padding-top:6px">+ ${lista.length - 15} outras pendências</div>` : "");
+    }
     async function loadHome(periodo) {
       if (periodo) {
         homeFilter = periodo;
@@ -4639,11 +4693,13 @@
       renderGreeting();
       updateOnlineStatus();
       try {
-        const [pr, pp, rp] = await Promise.all([
+        const [pr, pp, rp, cb] = await Promise.all([
           apiGet("getProdutos"),
           apiGet("getPedidos"),
-          apiGet("getResumoPeriodo", { periodo: homeFilter }).catch(() => null)
+          apiGet("getResumoPeriodo", { periodo: homeFilter }).catch(() => null),
+          apiGet("getCobrancasPendentes").catch(() => null)
         ]);
+        renderCobrancas(cb && cb.ok ? cb.cobrancas : []);
         const prods = (pr && Array.isArray(pr.produtos)) ? pr.produtos : [];
         const peds  = (pp && Array.isArray(pp.pedidos))  ? pp.pedidos  : [];
         allProds = prods; allPeds = peds;
@@ -6518,7 +6574,7 @@
         `✅ *Total pago: ${fmt(totalPago)}*`,
         quitado ? `✅ *QUITADO*` : `⚠️ *Saldo devedor: ${fmt(saldo)}*`,
         ``,
-        `_GJ Store — Obrigado pela preferência 🙏_`
+        `_${_fraseAgradecimento(quitado)}_`
       ].filter(l => l !== null && l !== undefined).join("\n"));
 
       const existing = document.getElementById("baixaReceiptModal");
