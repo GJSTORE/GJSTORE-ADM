@@ -504,6 +504,17 @@ body{background:var(--dark);color:var(--text);font-family:var(--B);min-height:10
         <input id="schInp" type="text" placeholder="Buscar por ID, cliente, itens..." oninput="render()">
       </div>
 
+      <!-- G6: filtro de período (data de criação) -->
+      <div style="margin-bottom:10px">
+        <button onclick="document.getElementById('pedPeriodoRow').style.display=document.getElementById('pedPeriodoRow').style.display==='none'?'flex':'none'" style="background:none;border:none;color:var(--muted);font-size:11px;cursor:pointer;padding:0;display:flex;align-items:center;gap:4px">📅 Filtrar por período ▾</button>
+        <div id="pedPeriodoRow" style="display:none;gap:6px;align-items:center;margin-top:6px;flex-wrap:wrap">
+          <input type="date" id="pedDataIni" class="bx-inp" style="max-width:135px;padding:4px 8px;font-size:12px" onchange="render()">
+          <span style="color:var(--muted);font-size:11px">até</span>
+          <input type="date" id="pedDataFim" class="bx-inp" style="max-width:135px;padding:4px 8px;font-size:12px" onchange="render()">
+          <button class="fb" onclick="document.getElementById('pedDataIni').value='';document.getElementById('pedDataFim').value='';render()" style="white-space:nowrap">✕ Limpar</button>
+        </div>
+      </div>
+
       <!-- Toggle view -->
       <div id="pedViewToggle" style="display:flex;gap:6px;margin-bottom:10px">
         <button id="pvtPedidos" class="pb" onclick="setPedView('pedidos')" style="flex:1;font-size:12px;padding:7px 0">📋 Pedidos</button>
@@ -528,6 +539,13 @@ body{background:var(--dark);color:var(--text);font-family:var(--B);min-height:10
         <button class="fb" id="finf-ultmes" onclick="setFinFilter('ultmes',this)">Mês Anterior</button>
         <button class="fb" id="finf-pend" onclick="setFinFilter('pend',this)" style="color:var(--r);border-color:rgba(244,67,54,.3)">⏰ Pendentes</button>
         <input type="month" id="finMesCustom" class="bx-inp" style="max-width:130px;padding:4px 8px;font-size:12px" onchange="setFinFilter('custom',null)">
+      </div>
+      <!-- G6: período customizado (data início/fim) -->
+      <div style="display:flex;gap:6px;align-items:center;margin-bottom:10px;flex-wrap:wrap">
+        <input type="date" id="finDataIni" class="bx-inp" style="max-width:135px;padding:4px 8px;font-size:12px">
+        <span style="color:var(--muted);font-size:11px">até</span>
+        <input type="date" id="finDataFim" class="bx-inp" style="max-width:135px;padding:4px 8px;font-size:12px">
+        <button class="fb" onclick="setFinFilter('range',null)" style="white-space:nowrap">🔍 Filtrar período</button>
       </div>
       <div id="finList"><div class="loading"><div class="spin"></div></div></div>
     </div>
@@ -867,6 +885,17 @@ function getFiltered() {
       return new Date(+dv[2], +dv[1]-1, +dv[0]) < today;
     }
     if (filtStatus && !filtStatus.startsWith("_") && status !== filtStatus) return false;
+
+    // G6: filtro de período (data de criação do pedido)
+    const pedDataIni = document.getElementById("pedDataIni")?.value;
+    const pedDataFim = document.getElementById("pedDataFim")?.value;
+    if (pedDataIni || pedDataFim) {
+      const dtParts = String(p["Data/Hora"] || "").split(" ")[0].split("/");
+      if (dtParts.length < 3) return false;
+      const dt = new Date(Number(dtParts[2]), Number(dtParts[1]) - 1, Number(dtParts[0]));
+      if (pedDataIni && dt < new Date(pedDataIni + "T00:00:00")) return false;
+      if (pedDataFim && dt > new Date(pedDataFim + "T23:59:59")) return false;
+    }
 
     // Busca
     if (q) {
@@ -2466,17 +2495,26 @@ function renderFin() {
   const mesAnt = mesAtual === 0 ? 11 : mesAtual - 1;
   const anoAnt = mesAtual === 0 ? anoAtual - 1 : anoAtual;
   const custom = document.getElementById("finMesCustom")?.value || "";
+  // G6: range de datas (início/fim) — comparação por dia, não só mês
+  const rangeIni = document.getElementById("finDataIni")?.value ? new Date(document.getElementById("finDataIni").value + "T00:00:00") : null;
+  const rangeFim = document.getElementById("finDataFim")?.value ? new Date(document.getElementById("finDataFim").value + "T23:59:59") : null;
 
   function inPeriod(dtStr) {
     if (!dtStr) return false;
     const p = String(dtStr).split("/");
     if (p.length < 3) return false;
-    const m = Number(p[1]) - 1, y = Number(p[2]);
+    const d = Number(p[0]), m = Number(p[1]) - 1, y = Number(p[2].split(" ")[0]);
     if (_finFilter === "mes") return m === mesAtual && y === anoAtual;
     if (_finFilter === "ultmes") return m === mesAnt && y === anoAnt;
     if (_finFilter === "custom" && custom) {
       const [cy, cm] = custom.split("-").map(Number);
       return m === cm - 1 && y === cy;
+    }
+    if (_finFilter === "range" && (rangeIni || rangeFim)) {
+      const dt = new Date(y, m, d);
+      if (rangeIni && dt < rangeIni) return false;
+      if (rangeFim && dt > rangeFim) return false;
+      return true;
     }
     return true;
   }
