@@ -649,6 +649,14 @@ function apiGet(action, params = {}) {
 function fmt(v) {
   return "R$ " + Number(v || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 });
 }
+// BUG-RECIBO-DATA-CRUA (2026-08-03): GAS devolve datas como ISO (2026-07-31T07:00:00.000Z) quando
+// vem de objeto Date da planilha. Sem isso, recibo mostra a string crua em vez de dd/mm/aaaa.
+function _rcDate(v) {
+  if (!v) return "—";
+  const s = String(v);
+  if (/^\d{4}-\d{2}-\d{2}T/.test(s)) { try { return new Date(s).toLocaleDateString("pt-BR"); } catch(e) { return s; } }
+  return s;
+}
 function fmtK(v) {
   v = Number(v || 0);
   return v >= 1000 ? "R$" + (v / 1000).toFixed(1) + "k" : "R$" + v.toFixed(0);
@@ -1593,7 +1601,7 @@ function renderDetailBaixas(pedId, totalPed) {
   const mkRow = (b, isPend, num) => {
     const vl = Number(isPend ? (valorParcelaDet || b["Saldo_Restante"] || b["Valor_Original"] || 0) : (b["Valor_Final_Recebido"] || 0));
     const st = b["Status_Pagamento"] || "";
-    const dt = isPend ? (b["Proxima_Vencimento"] || "—") : (b["Data_Baixa_Efetiva"] || "—");
+    const dt = _rcDate(isPend ? b["Proxima_Vencimento"] : b["Data_Baixa_Efetiva"]);
     const cor = isPend ? "#f44336" : (st.includes("Atraso") ? "#ffb74d" : "#00e676");
     return `<div class="rc-bx-row">
       <div class="rc-num" style="background:${cor}20;border:1.5px solid ${cor}55;color:${cor}">${num}</div>
@@ -2039,7 +2047,7 @@ async function showRecibo(pedId) {
   const mkBxRow = (b, isPend, num) => {
     const vl = Number(isPend ? (valorParcelaRc || b["Saldo_Restante"] || b["Valor_Original"] || 0) : (b["Valor_Final_Recebido"] || 0));
     const st = b["Status_Pagamento"] || "";
-    const dt = isPend ? (b["Proxima_Vencimento"] || "—") : (b["Data_Baixa_Efetiva"] || "—");
+    const dt = _rcDate(isPend ? b["Proxima_Vencimento"] : b["Data_Baixa_Efetiva"]);
     const taxa = Number(b["Taxa_Aplicada_RS"] || 0);
     const isAtrasado = st.includes("Atraso");
     const cor = isPend ? "#f44336" : (isAtrasado ? "#ffb74d" : st.includes("Antecip") ? "#ab47bc" : "#00e676");
@@ -2084,9 +2092,9 @@ async function showRecibo(pedId) {
     wppLines.push("", "─────────────────────", `💳 *Pagamentos (${nPagas}/${totalParc || nPagas + nPend}):*`);
     pagas.forEach((b,i) => {
       const taxa = Number(b["Taxa_Aplicada_RS"]||0);
-      wppLines.push(`✅ ${parcLabel(i+1)} — ${b["Data_Baixa_Efetiva"]||"—"} — ${fmt(Number(b["Valor_Final_Recebido"]||0))}${taxa > 0 ? ` (c/ juros ${fmt(taxa)})` : ""}`);
+      wppLines.push(`✅ ${parcLabel(i+1)} — ${_rcDate(b["Data_Baixa_Efetiva"])} — ${fmt(Number(b["Valor_Final_Recebido"]||0))}${taxa > 0 ? ` (c/ juros ${fmt(taxa)})` : ""}`);
     });
-    pendentes.forEach((b,i) => wppLines.push(`⏳ ${parcLabel(nPagas+i+1)} — Vence ${b["Proxima_Vencimento"]||"—"} — ${fmt(Number(valorParcelaRc || b["Saldo_Restante"]||b["Valor_Original"]||0))}`));
+    pendentes.forEach((b,i) => wppLines.push(`⏳ ${parcLabel(nPagas+i+1)} — Vence ${_rcDate(b["Proxima_Vencimento"])} — ${fmt(Number(valorParcelaRc || b["Saldo_Restante"]||b["Valor_Original"]||0))}`));
     wppLines.push("", `✅ *Total pago: ${fmt(totalPago)}*`);
     if (totalJuros > 0) wppLines.push(`⚠️ Juros totais: ${fmt(totalJuros)}`);
     wppLines.push(quitado ? "🎉 *QUITADO ✅*" : `⚠️ *Saldo devedor: ${fmt(saldo)}*`);

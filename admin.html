@@ -4342,6 +4342,13 @@
     }
 
     function fmt(v) { const n = Number(v); return "R$ " + (isNaN(n) ? "0,00" : n.toLocaleString("pt-BR", { minimumFractionDigits: 2 })); }
+    // BUG-RECIBO-DATA-CRUA (2026-08-03): GAS devolve Date como ISO (2026-07-31T07:00:00.000Z) — sem isso, recibo mostra a string crua
+    function _rcDate(v) {
+      if (!v) return "—";
+      const s = String(v);
+      if (/^\d{4}-\d{2}-\d{2}T/.test(s)) { try { return new Date(s).toLocaleDateString("pt-BR"); } catch(e) { return s; } }
+      return s;
+    }
     function fmtDate(s) { try { return String(s).split(" ")[0]; } catch (e) { return s; } }
     function fmtDT(s, dateOnly) {
       if (!s) return "—";
@@ -6041,7 +6048,7 @@
         const vl  = Number(b["Valor_Final_Recebido"] || 0);
         const sl  = Number(b["Saldo_Restante"] || 0);
         const st  = b["Status_Pagamento"] || "";
-        const dt  = isPend ? (b["Proxima_Vencimento"] || "—") : (b["Data_Baixa_Efetiva"] || "—");
+        const dt  = _rcDate(isPend ? b["Proxima_Vencimento"] : b["Data_Baixa_Efetiva"]);
         const cor = isPend ? "var(--r)" : (st.includes("Atraso") ? "#ffb74d" : "var(--g)");
         const num = isPend ? (nPagas + i + 1) : (i + 1);
         const vlPend = valorParcelaRes || Number(b["Saldo_Restante"] || b["Valor_Original"] || 0);
@@ -6472,7 +6479,7 @@
       const mkBaixaRow = (b, isPend, num) => {
         const vl  = Number(isPend ? (valorParcelaAdmin || b["Saldo_Restante"] || b["Valor_Original"] || 0) : (b["Valor_Final_Recebido"] || 0));
         const st  = b["Status_Pagamento"] || "";
-        const dt  = isPend ? (b["Proxima_Vencimento"] || "—") : (b["Data_Baixa_Efetiva"] || "—");
+        const dt  = _rcDate(isPend ? b["Proxima_Vencimento"] : b["Data_Baixa_Efetiva"]);
         const cor = isPend ? "#f44336" : (st.includes("Atraso") ? "#ffb74d" : "#00e676");
         return `<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid rgba(255,255,255,.05)">
           <div style="width:20px;height:20px;border-radius:50%;background:${cor}20;border:1.5px solid ${cor}55;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:800;color:${cor};flex-shrink:0">${num}</div>
@@ -6505,8 +6512,8 @@
         `💰 *Total do pedido: ${fmt(totalOrig)}*`,
         ``,
         historico.length ? `📋 *Pagamentos (${nPagas} de ${nPagas+nPend}):*` : "",
-        ...pagas.map((b,i) => `✅ ${i+1}. ${b["Data_Baixa_Efetiva"]||"—"} — ${fmt(b["Valor_Final_Recebido"])} (${b["Status_Pagamento"]})`),
-        ...pendentes.map((b,i) => `⏳ ${nPagas+i+1}. Vence ${b["Proxima_Vencimento"]||"—"} — ${fmt(valorParcelaAdmin || b["Saldo_Restante"]||b["Valor_Original"]||0)} (Pendente)`),
+        ...pagas.map((b,i) => `✅ ${i+1}. ${_rcDate(b["Data_Baixa_Efetiva"])} — ${fmt(b["Valor_Final_Recebido"])} (${b["Status_Pagamento"]})`),
+        ...pendentes.map((b,i) => `⏳ ${nPagas+i+1}. Vence ${_rcDate(b["Proxima_Vencimento"])} — ${fmt(valorParcelaAdmin || b["Saldo_Restante"]||b["Valor_Original"]||0)} (Pendente)`),
         ``,
         `✅ *Total pago: ${fmt(totalPago)}*`,
         quitado ? `✅ *QUITADO*` : `⚠️ *Saldo devedor: ${fmt(saldo)}*`,
@@ -9975,9 +9982,11 @@
         return;
       }
       if (delBtn) {
+        const adminSenha = prompt("Confirme a SENHA DE ADMIN para excluir operador:");
+        if (adminSenha === null) return;
         toastUndo("Operador removido.",
           async () => {
-            const r = await apiGet("deletarOperador", { id: delBtn.dataset.opDel }).catch(() => ({ ok: false }));
+            const r = await apiGet("deletarOperador", { id: delBtn.dataset.opDel, adminSenha }).catch(() => ({ ok: false }));
             if (r.ok) { if (r.inativado) toast("⚠️ " + (r.aviso || "Operador inativado (tem pedidos vinculados)")); else toast("Operador removido ✅"); loadOperadores(); } else toast(r.error || "Erro ao deletar", "err");
           },
           () => {}
@@ -10248,9 +10257,11 @@
 
     async function deletarCliente(id, nome) {
       if (!id) { toast("Cliente sem ID (importado do histórico). Não é possível deletar.", "err"); return; }
+      const adminSenha = prompt("Confirme a SENHA DE ADMIN para excluir cliente:");
+      if (adminSenha === null) return;
       if (!confirm(`Remover "${nome}" da base de clientes?`)) return;
       try {
-        const r = await apiGet("deletarCliente", { id });
+        const r = await apiGet("deletarCliente", { id, adminSenha });
         if (r.ok) { toast("Cliente removido ✅"); _allClientes = []; loadClientes(); }
         else toast(r.error || "Erro ao remover", "err");
       } catch(e) { toast("Erro de conexão", "err"); }
