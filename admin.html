@@ -3161,11 +3161,11 @@
     <div class="page" id="page-prod">
       <div class="toolbar">
         <div class="sbox"><span style="opacity:.4">🔍</span><input type="text" id="psearch" placeholder="Buscar..."
-            oninput="renderProds()"></div>
-        <select class="fsel" id="pcat" onchange="renderProds()">
+            oninput="prodFilterChanged()"></div>
+        <select class="fsel" id="pcat" onchange="prodFilterChanged()">
           <option value="">Todas categorias</option>
         </select>
-        <select class="fsel" id="pstatus" onchange="renderProds()">
+        <select class="fsel" id="pstatus" onchange="prodFilterChanged()">
           <option value="">Todos</option>
           <option>Ativo</option>
           <option>Inativo</option>
@@ -3195,6 +3195,9 @@
         <div class="loading">
           <div class="spin"></div>Carregando...
         </div>
+      </div>
+      <div id="prodLoadMore" style="display:none;text-align:center;margin-top:12px">
+        <button class="load-more-btn" onclick="prodShowMore()">Carregar mais →</button>
       </div>
     </div>
 
@@ -3685,6 +3688,9 @@
       </div>
       <input class="fi" id="clienteSearch" placeholder="🔍 Buscar por nome ou fone..." style="width:100%;padding:7px 12px;font-size:13px;margin-bottom:12px" oninput="filterClientes(this.value)">
       <div id="clientesList"><div class="empty">Acesse esta aba para carregar.</div></div>
+      <div id="cliLoadMore" style="display:none;text-align:center;margin-top:12px">
+        <button class="load-more-btn" onclick="cliShowMore()">Carregar mais →</button>
+      </div>
     </div>
 
   <!-- ══ PAGE: AUTOMAÇÕES ═══════════════════════════════════════════ -->
@@ -5167,6 +5173,10 @@
       renderProds();
     }
 
+    // E6.2: paginação — grid renderizava TODOS os produtos de uma vez, pesado com catálogo grande
+    let _prodVisibleCount = 40;
+    function prodFilterChanged() { _prodVisibleCount = 40; renderProds(); }
+    function prodShowMore() { _prodVisibleCount += 40; renderProds(); }
     function renderProds() {
       const q = (document.getElementById("psearch").value || "").toLowerCase();
       const cat = document.getElementById("pcat").value;
@@ -5195,8 +5205,13 @@
         return mq && mcat && mst;
       });
       const el = document.getElementById("plist");
-      if (!list.length) { el.innerHTML = `<div class="empty">Nenhum produto encontrado</div>`; return; }
-      el.innerHTML = list.map(p => {
+      if (!list.length) {
+        el.innerHTML = `<div class="empty">Nenhum produto encontrado</div>`;
+        const lm0 = document.getElementById("prodLoadMore"); if (lm0) lm0.style.display = "none";
+        return;
+      }
+      const batch = list.slice(0, _prodVisibleCount);
+      el.innerHTML = batch.map(p => {
         const img = p["Imagem 1 (URL)"] || "";
         const ativo = p["Status"] === "Ativo";
         const rascunho = String(p["Publicado"] || "").trim().toLowerCase() === "não";
@@ -5225,6 +5240,8 @@
       </div>
     </div>`;
       }).join("");
+      const lm = document.getElementById("prodLoadMore");
+      if (lm) lm.style.display = batch.length < list.length ? "block" : "none";
     }
 
     // MODAL PRODUTO
@@ -10299,6 +10316,7 @@
 
     // CLIENTES (unificado: dados cadastrais + histórico de score/baixas)
     let _allClientes = [];
+    let _lastClientesList = [];
     let _clientesCarregando = false;
     // _baixasCache já declarado acima (compartilhado com loadFin/loadScore)
 
@@ -10355,18 +10373,27 @@
           return sb - sa;
         });
 
+        _cliVisibleCount = 40;
+        _lastClientesList = _allClientes;
         renderClientesList(_allClientes);
       } catch(e) { if (el) el.innerHTML = `<div class="empty" style="color:var(--r)">Erro ao carregar: ${e.message || "verifique a conexão"}. <button onclick="loadClientes()" style="background:var(--g);color:#04140b;border:none;border-radius:6px;padding:4px 10px;font-size:11px;font-weight:700;cursor:pointer;margin-left:6px">🔄 Tentar de novo</button></div>`; }
       finally { _clientesCarregando = false; }
     }
 
+    // E6.2: paginação — igual Produtos, index calculado ANTES de paginar (senão quebra openClienteDetalhe)
+    let _cliVisibleCount = 40;
     function renderClientesList(list) {
       const el = document.getElementById("clientesList");
       if (!el) return;
-      if (!list.length) { el.innerHTML = `<div class="empty">Nenhum cliente encontrado.</div>`; return; }
+      if (!list.length) {
+        el.innerHTML = `<div class="empty">Nenhum cliente encontrado.</div>`;
+        const lm0 = document.getElementById("cliLoadMore"); if (lm0) lm0.style.display = "none";
+        return;
+      }
+      const withIdx = list.map((c, idx) => ({ c, realIdx: c._origIdx !== undefined ? c._origIdx : idx }));
+      const batch = withIdx.slice(0, _cliVisibleCount);
       el.innerHTML = `<div class="cli-grid">` +
-        list.map((c, idx) => {
-          const realIdx = c._origIdx !== undefined ? c._origIdx : idx;
+        batch.map(({ c, realIdx }) => {
           const nome = c.nome || c.Nome || "—";
           const telRaw = String(c.telefone || c.WhatsApp || "");
           // Score: usa Score_Atual se disponível, senão calcula das baixas
@@ -10405,11 +10432,15 @@
             </div>
           </div>`;
         }).join("") + `</div>`;
+      const lm = document.getElementById("cliLoadMore");
+      if (lm) lm.style.display = batch.length < withIdx.length ? "block" : "none";
     }
+    function cliShowMore() { _cliVisibleCount += 40; renderClientesList(_lastClientesList || _allClientes); }
 
     function filterClientes(q) {
       if (!_allClientes.length) return;
-      if (!q.trim()) { renderClientesList(_allClientes); return; }
+      _cliVisibleCount = 40; // reset paginação a cada busca nova
+      if (!q.trim()) { _lastClientesList = _allClientes; renderClientesList(_allClientes); return; }
       const ql = q.toLowerCase();
       // Filtra mas mantém referência aos índices originais — cria subset com índice original
       const filtered = _allClientes.map((c, i) => ({ ...c, _origIdx: i }))
@@ -10417,6 +10448,7 @@
                      (c.telefone || c.WhatsApp || "").includes(q) ||
                      (c.Email || "").toLowerCase().includes(ql));
       // Renderiza com _origIdx para que openClienteDetalhe use índice correto
+      _lastClientesList = filtered;
       renderClientesList(filtered);
     }
 
