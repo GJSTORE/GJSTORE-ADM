@@ -9124,7 +9124,7 @@
       const c = _allClientes[idx];
       if (!c) return;
       const nome = c.nome || c.Nome || "—";
-      const telRaw = c.telefone || c.WhatsApp || "";
+      const telRaw = String(c.telefone || c.WhatsApp || "");
       const email = c.Email || c.email || "";
       const end = c.Endereco || c.endereco || (c.lastPedido ? (c.lastPedido["Endereço"] || c.lastPedido["Endereço de Entrega"] || "") : "");
       const cidade = c.Cidade || ""; const estado = c.Estado || "";
@@ -10156,7 +10156,7 @@
             const b0 = baixas[0];
             _allClientes.push({
               nome: b0["Nome_Cliente"] || b0["Nome Cliente"] || key,
-              telefone: b0["Telefone"] || "",
+              telefone: String(b0["Telefone"] || ""),
               _baixas: baixas,
               _soScore: true  // só tem histórico, não cadastrado
             });
@@ -10183,7 +10183,7 @@
         list.map((c, idx) => {
           const realIdx = c._origIdx !== undefined ? c._origIdx : idx;
           const nome = c.nome || c.Nome || "—";
-          const telRaw = c.telefone || c.WhatsApp || "";
+          const telRaw = String(c.telefone || c.WhatsApp || "");
           // Score: usa Score_Atual se disponível, senão calcula das baixas
           const sc = c.Score_Atual != null ? Number(c.Score_Atual) :
                      (c._baixas && c._baixas.length ? calcScore(c._baixas) : null);
