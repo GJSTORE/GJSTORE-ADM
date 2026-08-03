@@ -4747,16 +4747,18 @@
     let homeFilter = "30";
     let _abandDias = "30";
     // W2/W3: texto de cobrança pronto — atrasado usa tom mais firme, a vencer é lembrete gentil
+    // E4.3: mensagem personalizada — nome, #pedido, ITENS, saldo, vencimento + assinatura
     function _cobrancaMsg(c) {
       const nome = c.nome || "Cliente";
       const valor = fmt(c.valor);
       const venc = c.vencimento || "—";
+      const itensLinha = c.itens ? `📦 ${c.itens}\n` : "";
       const assinatura = "\n\n———————————————\nGJ STORE\n_MENSAGEM AUTOMÁTICA — SISTEMA GJ STORE_";
       if (c.urgencia === "atrasado") {
-        return `Olá ${nome}! ⏰\nSua parcela do pedido #${c.idPedido} venceu há ${c.diasAtraso} dia${c.diasAtraso > 1 ? "s" : ""}.\n\n📋 Pedido: #${c.idPedido}\n📅 Venceu em: ${venc}\n💰 Valor em aberto: ${valor}\n⚠️ Juros estimados: ${fmt(c.jurosEstimado)} (R$5/dia de atraso)\n\nPara regularizar, é só responder aqui ou chamar a gente 😉` + assinatura;
+        return `Olá ${nome}! ⏰\nSua parcela do pedido #${c.idPedido} venceu há ${c.diasAtraso} dia${c.diasAtraso > 1 ? "s" : ""}.\n\n📋 Pedido: #${c.idPedido}\n${itensLinha}📅 Venceu em: ${venc}\n💰 Valor em aberto: ${valor}\n⚠️ Juros estimados: ${fmt(c.jurosEstimado)} (R$5/dia de atraso)\n\nPara regularizar, é só responder aqui ou chamar a gente 😉` + assinatura;
       }
       const diasTxt = c.diasRestantes === 0 ? "vence HOJE" : `vence em ${c.diasRestantes} dia${c.diasRestantes > 1 ? "s" : ""}`;
-      return `Olá ${nome}! Lembrando que sua parcela do pedido #${c.idPedido} ${diasTxt}.\n\n📅 Vencimento: ${venc}\n💰 Valor: ${valor}\n\n⚠️ Após o vencimento, são acrescidos R$5 por dia de atraso.\n\nSe já pagou, desconsidere esta mensagem ✅\nSe precisar de ajuda, é só chamar!` + assinatura;
+      return `Olá ${nome}! Lembrando que sua parcela do pedido #${c.idPedido} ${diasTxt}.\n\n${itensLinha}📅 Vencimento: ${venc}\n💰 Valor: ${valor}\n\n⚠️ Após o vencimento, são acrescidos R$5 por dia de atraso.\n\nSe já pagou, desconsidere esta mensagem ✅\nSe precisar de ajuda, é só chamar!` + assinatura;
     }
     function renderCobrancas(lista) {
       const el = document.getElementById("homeCobrancas");
