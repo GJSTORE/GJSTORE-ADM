@@ -2227,7 +2227,7 @@
     /* MKT: Layout Picker */
     .mkt-layout-picker { margin-bottom:12px }
     .mkt-lp-title { font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.7px;margin-bottom:7px }
-    .mkt-lp-btns { display:flex;gap:6px }
+    .mkt-lp-btns { display:flex;gap:6px;flex-wrap:wrap }
     .mkt-lp-btn {
       flex:1;padding:8px 2px;border-radius:10px;border:1.5px solid var(--border);
       background:var(--d3);font-size:10px;font-weight:700;color:var(--muted);cursor:pointer;
@@ -2260,6 +2260,18 @@
     #mktHtmlCard.layout-5 .mkt-deco-topline { top:55%;height:2px }
     #mktHtmlCard.layout-5 .mkt-deco-glow { top:55%;bottom:0;height:auto;background:rgba(6,14,26,.55);border-radius:0 }
     #mktHtmlCard.layout-5 .mkt-grid-bg { top:55% }
+
+    /* Layout 6 — Círculo (premium/elegante): imagem redonda centralizada, texto abaixo */
+    #mktHtmlCard.layout-6 .mkt-img-box { top:8%;left:50%;right:auto;width:150px;height:150px;transform:translateX(-50%);border-radius:50%;box-shadow:0 0 0 3px rgba(0,230,118,.4),0 0 44px rgba(0,230,118,.22),0 4px 24px rgba(0,0,0,.5) }
+    #mktHtmlCard.layout-6 .mkt-img-overlay { border-radius:50% }
+    #mktHtmlCard.layout-6 .mkt-badge { left:50%;right:auto;transform:translateX(-50%);top:6px }
+    #mktHtmlCard.layout-6 .mkt-deco-glow { top:2%;height:42%;background:radial-gradient(circle at 50% 35%,rgba(0,230,118,.20) 0%,transparent 65%) }
+
+    /* Layout 7 — Diagonal Neon (chamativo/flash): imagem full-bleed, faixa diagonal, texto colado embaixo */
+    #mktHtmlCard.layout-7 .mkt-img-box { top:0;left:0;right:0;bottom:0;width:auto;height:auto;border-radius:0 }
+    #mktHtmlCard.layout-7 .mkt-img-overlay { border-radius:0;background:linear-gradient(180deg,rgba(4,9,15,.1) 0%,rgba(4,9,15,.35) 45%,rgba(4,9,15,.94) 100%) }
+    #mktHtmlCard.layout-7 .mkt-badge { top:18px;right:-38px;left:auto;transform:rotate(45deg);width:150px;text-align:center;background:linear-gradient(90deg,#ff3d71,#ff2e8f);border:none;color:#fff;padding:6px 0;font-size:11px;letter-spacing:2px;text-shadow:none }
+    #mktHtmlCard.layout-7 .mkt-deco-glow, #mktHtmlCard.layout-7 .mkt-deco-topline { display:none }
 
     /* KANBAN INFO BTN */
     .kb-info {
@@ -3368,6 +3380,8 @@
             <button class="mkt-lp-btn" id="mktLP3" onclick="mktSetLayout(3)"><span class="mkt-lp-icon">💲</span><span>Preço</span></button>
             <button class="mkt-lp-btn" id="mktLP4" onclick="mktSetLayout(4)"><span class="mkt-lp-icon">✦</span><span>Texto</span></button>
             <button class="mkt-lp-btn" id="mktLP5" onclick="mktSetLayout(5)"><span class="mkt-lp-icon">📰</span><span>Magazine</span></button>
+            <button class="mkt-lp-btn" id="mktLP6" onclick="mktSetLayout(6)"><span class="mkt-lp-icon">⭕</span><span>Círculo</span></button>
+            <button class="mkt-lp-btn" id="mktLP7" onclick="mktSetLayout(7)"><span class="mkt-lp-icon">⚡</span><span>Neon</span></button>
           </div>
         </div>
         <!-- Painel de Controles -->
@@ -7330,7 +7344,7 @@
         const el = document.getElementById(id);
         if (el) { el.style.top=""; el.style.left=""; el.style.right=""; el.style.textAlign=""; el.style.fontSize=""; }
       });
-      for (let i = 1; i <= 5; i++) {
+      for (let i = 1; i <= 7; i++) {
         const b = document.getElementById("mktLP" + i);
         if (b) b.classList.toggle("on", i === n);
       }
@@ -7377,6 +7391,18 @@
         if (priceEl) { priceEl.style.top="62%"; priceEl.style.left="14px"; priceEl.style.right="14px"; priceEl.style.textAlign="left"; }
         if (hlEl)    { hlEl.style.top="73%";    hlEl.style.left="14px";   hlEl.style.right="14px";   hlEl.style.textAlign="left"; }
         if (subEl)   { subEl.style.top="84%";   subEl.style.left="14px";  subEl.style.right="14px";  subEl.style.textAlign="left"; }
+      } else if (layout === 6) {
+        // Círculo: imagem redonda centralizada, tudo abaixo dela centralizado
+        if (nameEl)  { nameEl.style.top="46%";  nameEl.style.left="14px"; nameEl.style.right="14px"; nameEl.style.textAlign="center"; }
+        if (priceEl) { priceEl.style.top="51%"; priceEl.style.left="14px"; priceEl.style.right="14px"; priceEl.style.textAlign="center"; priceEl.style.fontSize="34px"; }
+        if (hlEl)    { hlEl.style.top="64%";    hlEl.style.left="14px";   hlEl.style.right="14px";   hlEl.style.textAlign="center"; }
+        if (subEl)   { subEl.style.top="80%";   subEl.style.left="14px";  subEl.style.right="14px";  subEl.style.textAlign="center"; }
+      } else if (layout === 7) {
+        // Diagonal Neon: imagem full-bleed, texto colado embaixo, faixa diagonal no badge
+        if (nameEl)  { nameEl.style.top="68%"; nameEl.style.left="14px"; nameEl.style.right="14px"; nameEl.style.textAlign="left"; }
+        if (priceEl) { priceEl.style.top="73%"; priceEl.style.left="14px"; priceEl.style.right="14px"; priceEl.style.textAlign="left"; priceEl.style.fontSize="32px"; }
+        if (hlEl)    { hlEl.style.top="83%";    hlEl.style.left="14px";   hlEl.style.right="90px";   hlEl.style.textAlign="left"; }
+        if (subEl)   { subEl.style.top="93%";   subEl.style.left="14px";  subEl.style.right="14px";  subEl.style.textAlign="left"; }
       }
     }
 
