@@ -6555,7 +6555,7 @@
         : `<div style="font-size:12px;color:#8899aa;padding:6px 0">Nenhum pagamento registrado</div>`;
 
       // WPP message
-      const wppMsg = encodeURIComponent([
+      const wppMsgRaw = [
         `🧾 *Recibo — GJ Store*`,
         ``,
         `👤 *${nome}*${tel ? `  📱 ${tel}` : ""}`,
@@ -6575,7 +6575,8 @@
         quitado ? `✅ *QUITADO*` : `⚠️ *Saldo devedor: ${fmt(saldo)}*`,
         ``,
         `_${_fraseAgradecimento(quitado)}_`
-      ].filter(l => l !== null && l !== undefined).join("\n"));
+      ].filter(l => l !== null && l !== undefined).join("\n");
+      const wppMsg = encodeURIComponent(wppMsgRaw);
 
       const existing = document.getElementById("baixaReceiptModal");
       if (existing) existing.remove();
@@ -6743,15 +6744,20 @@
           const canvas = await html2canvas(card, { scale: 2.5, backgroundColor: "#04090f", useCORS: true, logging: false });
           canvas.toBlob(blob => {
             const file = new File([blob], `recibo-${idPed}.png`, { type: "image/png" });
+            // W3: share nativo já leva texto + imagem juntos (WhatsApp usa "text" como legenda)
             if (navigator.canShare && navigator.canShare({ files: [file] })) {
-              navigator.share({ files: [file], title: "Recibo GJ Store" }).catch(() => {});
+              navigator.share({ files: [file], text: wppMsgRaw, title: "Recibo GJ Store" }).catch(() => {});
+              btn.textContent = "✅ Enviado!";
             } else {
+              // Sem suporte a share de arquivo (desktop): baixa a imagem + abre WhatsApp com o texto pronto.
+              // Usuário precisa anexar a imagem manualmente — WhatsApp não aceita mídia via link wa.me.
               const a = document.createElement("a");
               a.href = URL.createObjectURL(blob);
               a.download = `recibo-${idPed}.png`;
               a.click();
+              if (tel) window.open(`https://wa.me/55${tel}?text=${wppMsg}`, "_blank");
+              btn.textContent = "✅ Baixado — anexe no WhatsApp";
             }
-            btn.textContent = "✅ Salvo!";
             btn.disabled = false;
           }, "image/png");
         } catch(e) {
