@@ -157,6 +157,11 @@
       display: flex; align-items: center; justify-content: center; padding: 16px;
     }
     #modal-cliente.hidden, #modal-importar.hidden, #modal-parcelas.hidden, #modal-op-senha.hidden { display: none; }
+    /* BUG: modal-margem tinha display:flex inline no HTML, que sempre vence a classe .hidden
+       (especificidade de style inline > seletor de classe) — modal ficava aberto sempre e não
+       fechava nunca. Corrigido: display fica só aqui na folha de estilo, .hidden some por cima */
+    #modal-margem { display: flex; }
+    #modal-margem.hidden { display: none; }
     #modal-cliente .npbox, #modal-importar .npbox, #modal-parcelas .npbox {
       width: 100%; max-width: 500px; max-height: 90vh; overflow-y: auto;
     }
@@ -3216,7 +3221,7 @@
     </div>
 
     <!-- MARGEM EM LOTE -->
-    <div id="modal-margem" class="hidden" style="position:fixed;inset:0;z-index:1200;background:rgba(4,9,15,.88);backdrop-filter:blur(5px);display:flex;align-items:center;justify-content:center;padding:16px" onclick="if(event.target===this)closeMargemLoteModal()">
+    <div id="modal-margem" class="hidden" style="position:fixed;inset:0;z-index:1200;background:rgba(4,9,15,.88);backdrop-filter:blur(5px);align-items:center;justify-content:center;padding:16px" onclick="if(event.target===this)closeMargemLoteModal()">
       <div style="width:100%;max-width:640px;max-height:90vh;overflow-y:auto;background:var(--d2);border:1px solid var(--border);border-radius:16px;padding:18px">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
           <div style="font-family:var(--H);font-weight:800;font-size:16px">🧮 Definir Margem em Lote</div>
