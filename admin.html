@@ -4432,6 +4432,8 @@
 
     let TOKEN = "";
     let _loginTipo = "admin";
+    // E3.4: assinatura padrão em toda mensagem automática pro cliente saber que não é o dono digitando na hora
+    const _SIG = "\n\n———————————————\nGJ STORE\n_MENSAGEM AUTOMÁTICA — SISTEMA GJ STORE_";
     let allProds = [], allPeds = [];
     let _allProdsFull = false; // true só quando carregado com verTodos=1 (inclui Inativo)
     let mediaUrls = [];
@@ -4827,12 +4829,11 @@
       const valor = fmt(c.valor);
       const venc = c.vencimento || "—";
       const itensLinha = c.itens ? `📦 ${c.itens}\n` : "";
-      const assinatura = "\n\n———————————————\nGJ STORE\n_MENSAGEM AUTOMÁTICA — SISTEMA GJ STORE_";
       if (c.urgencia === "atrasado") {
-        return `Olá ${nome}! ⏰\nSua parcela do pedido #${c.idPedido} venceu há ${c.diasAtraso} dia${c.diasAtraso > 1 ? "s" : ""}.\n\n📋 Pedido: #${c.idPedido}\n${itensLinha}📅 Venceu em: ${venc}\n💰 Valor em aberto: ${valor}\n⚠️ Juros estimados: ${fmt(c.jurosEstimado)} (R$5/dia de atraso)\n\nPara regularizar, é só responder aqui ou chamar a gente 😉` + assinatura;
+        return `Olá ${nome}! ⏰\nSua parcela do pedido #${c.idPedido} venceu há ${c.diasAtraso} dia${c.diasAtraso > 1 ? "s" : ""}.\n\n📋 Pedido: #${c.idPedido}\n${itensLinha}📅 Venceu em: ${venc}\n💰 Valor em aberto: ${valor}\n⚠️ Juros estimados: ${fmt(c.jurosEstimado)} (R$5/dia de atraso)\n\nPara regularizar, é só responder aqui ou chamar a gente 😉` + _SIG;
       }
       const diasTxt = c.diasRestantes === 0 ? "vence HOJE" : `vence em ${c.diasRestantes} dia${c.diasRestantes > 1 ? "s" : ""}`;
-      return `Olá ${nome}! Lembrando que sua parcela do pedido #${c.idPedido} ${diasTxt}.\n\n${itensLinha}📅 Vencimento: ${venc}\n💰 Valor: ${valor}\n\n⚠️ Após o vencimento, são acrescidos R$5 por dia de atraso.\n\nSe já pagou, desconsidere esta mensagem ✅\nSe precisar de ajuda, é só chamar!` + assinatura;
+      return `Olá ${nome}! Lembrando que sua parcela do pedido #${c.idPedido} ${diasTxt}.\n\n${itensLinha}📅 Vencimento: ${venc}\n💰 Valor: ${valor}\n\n⚠️ Após o vencimento, são acrescidos R$5 por dia de atraso.\n\nSe já pagou, desconsidere esta mensagem ✅\nSe precisar de ajuda, é só chamar!` + _SIG;
     }
     function renderCobrancas(lista) {
       const el = document.getElementById("homeCobrancas");
@@ -5081,7 +5082,7 @@
         el.innerHTML = clientes.map(c => {
           const last4 = String(c.tel || "").slice(-4);
           const cupom = "VOLTEI" + last4;
-          const msg = encodeURIComponent(`Oi ${c.nome}! Saudades de você na GJ Store! 👋 Use o cupom *${cupom}* para ganhar desconto especial na sua próxima compra!`);
+          const msg = encodeURIComponent(`Oi ${c.nome}! Saudades de você na GJ Store! 👋 Use o cupom *${cupom}* para ganhar desconto especial na sua próxima compra!` + _SIG);
           const wppUrl = `https://wa.me/55${c.tel}?text=${msg}`;
           return `<div class="crm-row">
         <div class="crm-info">
@@ -5105,7 +5106,7 @@
         toast("⏳ Criando cupom " + cupomCod + "...");
         const res = await apiGet("criarCupomReengajamento", { telefone: tel });
         if (!res || res.error) { toast(res?.error || "Erro ao criar cupom", "err"); return; }
-        const msg = encodeURIComponent(`Oi ${nome}! Criamos um cupom exclusivo pra você 🎁\n\n*${res.codigo || cupomCod}* — ${res.desconto || "10"}% OFF na sua próxima compra!\n\nVálido por 30 dias. Aproveite! 🛒`);
+        const msg = encodeURIComponent(`Oi ${nome}! Criamos um cupom exclusivo pra você 🎁\n\n*${res.codigo || cupomCod}* — ${res.desconto || "10"}% OFF na sua próxima compra!\n\nVálido por 30 dias. Aproveite! 🛒` + _SIG);
         window.open(`https://wa.me/55${tel}?text=${msg}`, "_blank");
         toast("✅ Cupom criado e WhatsApp aberto!");
       } catch (e) {
@@ -6092,9 +6093,9 @@
 
     function _offerWppStatusChange(ped, status) {
       const msgs = {
-        "Em andamento": `Olá ${ped["Nome Cliente"] || ""}! 👋\nSeu pedido *${ped["ID Pedido"]}* foi confirmado e está sendo preparado.\n\nQualquer dúvida, pode falar aqui! 😊`,
-        "Entregue": `Olá ${ped["Nome Cliente"] || ""}! 📦\nSeu pedido *${ped["ID Pedido"]}* foi entregue!\n\nCaso tenha dúvidas ou precise de suporte, estamos aqui. 😊`,
-        "Finalizado": `Olá ${ped["Nome Cliente"] || ""}! ✅\nSeu pedido *${ped["ID Pedido"]}* foi finalizado com sucesso.\n\nObrigado pela preferência na GJ Store! 🛒`
+        "Em andamento": `Olá ${ped["Nome Cliente"] || ""}! 👋\nSeu pedido *${ped["ID Pedido"]}* foi confirmado e está sendo preparado.\n\nQualquer dúvida, pode falar aqui! 😊` + _SIG,
+        "Entregue": `Olá ${ped["Nome Cliente"] || ""}! 📦\nSeu pedido *${ped["ID Pedido"]}* foi entregue!\n\nCaso tenha dúvidas ou precise de suporte, estamos aqui. 😊` + _SIG,
+        "Finalizado": `Olá ${ped["Nome Cliente"] || ""}! ✅\nSeu pedido *${ped["ID Pedido"]}* foi finalizado com sucesso.\n\nObrigado pela preferência na GJ Store! 🛒` + _SIG
       };
       const msg = msgs[status];
       if (!msg) { toast("Status atualizado ✅"); return; }
@@ -6119,7 +6120,7 @@
 
     function wppPed(tel, nome) {
       if (!tel) return;
-      const msg = encodeURIComponent(`Olá ${nome}! 👋\nPassando para falar sobre seu pedido na GJ Store.\nComo posso te ajudar? 😊`);
+      const msg = encodeURIComponent(`Olá ${nome}! 👋\nPassando para falar sobre seu pedido na GJ Store.\nComo posso te ajudar? 😊` + _SIG);
       window.open(`https://wa.me/55${tel.replace(/\D/g, "")}?text=${msg}`, "_blank");
     }
 
@@ -6577,7 +6578,7 @@
               `💰 *Valor Pago:* R$ ${Number(res.valorPago).toLocaleString("pt-BR",{minimumFractionDigits:2})}\n` +
               `📊 *Saldo Restante:* R$ ${Number(res.saldoRestante).toLocaleString("pt-BR",{minimumFractionDigits:2})}\n` +
               `📅 *Próximo Vencimento:* ${res.proximaVencimento || "—"}\n\n` +
-              `_Obrigado pela confiança! 🙏_`
+              `_Obrigado pela confiança! 🙏_` + _SIG
             );
             document.getElementById("bxWppRow").innerHTML = tel
               ? `<a href="https://wa.me/55${tel}?text=${msg}" target="_blank" style="display:block;background:rgba(37,211,102,.15);border:1px solid #25d366;color:#25d366;border-radius:8px;padding:8px 12px;text-decoration:none;font-size:13px;font-weight:600;text-align:center">💬 Enviar Extrato de Parcelas</a>`
@@ -7064,7 +7065,7 @@
       try {
         const res = await apiGet("gerarComprovanteDrive", { idPedido });
         if (res.ok) {
-          const msg = encodeURIComponent(`Olá ${nome}! Segue o comprovante do seu pedido GJ Store: ${res.url}`);
+          const msg = encodeURIComponent(`Olá ${nome}! Segue o comprovante do seu pedido GJ Store: ${res.url}` + _SIG);
           const wppUrl = `https://wa.me/55${tel.replace(/\D/g, "")}?text=${msg}`;
           window.open(wppUrl, "_blank");
           toast("Comprovante gerado ✅");
@@ -8420,7 +8421,7 @@
         }
         el.innerHTML = carrinhos.map(c => {
           const tel = String(c.telefone || c.tel || "").replace(/\D/g, "");
-          const msg = encodeURIComponent(`Oi ${c.nome || ""}! 👋 Você deixou itens no carrinho da GJ Store.\n\n*${c.itens || "Produtos selecionados"}*\n\nAinda está interessado? Posso reservar pra você! 🛒`);
+          const msg = encodeURIComponent(`Oi ${c.nome || ""}! 👋 Você deixou itens no carrinho da GJ Store.\n\n*${c.itens || "Produtos selecionados"}*\n\nAinda está interessado? Posso reservar pra você! 🛒` + _SIG);
           const wppUrl = tel ? `https://wa.me/55${tel}?text=${msg}` : null;
           return `<div class="aband-row">
             <div class="aband-info">
@@ -8681,7 +8682,7 @@
       const total = docItems.reduce((s, it) => s + it.preco * it.qty, 0);
       const itensText = docItems.map(it => `• ${it.nome} x${it.qty} = R$ ${(it.preco * it.qty).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`).join("\n");
       const titulo = docType === "orcamento" ? "📋 *ORÇAMENTO GJ STORE*" : "🧾 *RECIBO GJ STORE*";
-      const msg = encodeURIComponent(`${titulo}\n\n👤 ${nome}\n💳 ${docPagSel}\n\n${itensText}\n\n💰 *Total: R$ ${total.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}*\n\nObrigado pela preferência! 💚`);
+      const msg = encodeURIComponent(`${titulo}\n\n👤 ${nome}\n💳 ${docPagSel}\n\n${itensText}\n\n💰 *Total: R$ ${total.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}*\n\nObrigado pela preferência! 💚` + _SIG);
       const base = tel ? `https://wa.me/55${tel}?text=${msg}` : `https://wa.me/?text=${msg}`;
       window.open(base, "_blank");
     }
@@ -8694,7 +8695,7 @@
       const total = docItems.reduce((s, it) => s + it.preco * it.qty, 0);
       const itensText = docItems.map(it => `• ${it.nome} x${it.qty} = R$ ${(it.preco * it.qty).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`).join("\n");
       const storeName = cfg.NOME_LOJA || _storeName || "GJ STORE";
-      const msg = encodeURIComponent(`📋 *ORÇAMENTO ${storeName}*\n\n👤 ${nome}\n💳 ${docPagSel}\n\n${itensText}\n\n💰 *Total: R$ ${total.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}*\n\nObrigado pela preferência! 💚`);
+      const msg = encodeURIComponent(`📋 *ORÇAMENTO ${storeName}*\n\n👤 ${nome}\n💳 ${docPagSel}\n\n${itensText}\n\n💰 *Total: R$ ${total.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}*\n\nObrigado pela preferência! 💚` + _SIG);
       const base = tel ? `https://wa.me/55${tel}?text=${msg}` : `https://wa.me/?text=${msg}`;
       window.open(base, "_blank");
     }
