@@ -22,6 +22,8 @@ html.theme-light {
   --d4: #c0cbda; --d5: #b0bccc; --text: #1a2332;
   --muted: rgba(26,35,50,.55); --border: rgba(0,135,90,.18);
 }
+/* T1: .topbar/.bnav usavam rgba(4,9,15) fixo (glass escuro) mesmo no tema claro */
+html.theme-light .topbar, html.theme-light .bnav { background: rgba(242, 245, 249, .88); }
 .theme-toggle{display:flex;background:rgba(0,230,118,.1);border:1px solid rgba(0,230,118,.25);border-radius:20px;padding:3px;gap:2px}
 .tt-btn{background:none;border:none;border-radius:16px;padding:5px 10px;font-size:13px;cursor:pointer;color:var(--muted);transition:background .18s,color .18s;line-height:1}
 .tt-btn.on{background:var(--g);color:#fff}

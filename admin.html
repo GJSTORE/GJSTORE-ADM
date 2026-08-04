@@ -41,6 +41,10 @@
       --d4: #c0c0c4; --d5: #acacb0; --text: #0a1628;
       --muted: rgba(10,22,40,.55); --border: rgba(0,230,118,.22);
     }
+    /* T1: header e bnav usavam rgba(4,9,15) fixo (glass escuro) mesmo no tema claro — viravam
+       barras quase pretas no topo/rodapé de uma tela clara. Gold/cyberpunk já são escuros,
+       o glass escuro combina neles */
+    html.theme-light header, html.theme-light .bnav { background: rgba(245, 245, 247, .88); }
     html.theme-gold {
       --g: #d4af37; --c: #ede0b0; --o: #b8860b; --r: #cc2222;
       --dark: #080808; --d1: #0d0d0d; --d2: #121212; --d3: #181818;
