@@ -3210,8 +3210,11 @@
       <button class="np-fab" onclick="openNovoPedido()">+ Novo Pedido</button>
       <!-- KPI strip -->
       <div id="pedKpis" style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:12px"></div>
-      <input class="kanban-search" id="kanbanSearch" type="text" placeholder="🔍 Buscar por ID, cliente, itens..."
-        oninput="onKanbanSearch(this.value)">
+      <div style="display:flex;gap:6px;align-items:center">
+        <input class="kanban-search" id="kanbanSearch" type="text" placeholder="🔍 Buscar por ID, cliente, itens..."
+          oninput="onKanbanSearch(this.value)" style="flex:1">
+        <button onclick="exportarPedidosCSV()" title="Exportar lista filtrada como CSV" style="background:var(--d3);border:1px solid var(--border);color:var(--fg);border-radius:8px;padding:9px 10px;font-size:13px;cursor:pointer;white-space:nowrap">📊 CSV</button>
+      </div>
       <div class="kfilter-bar">
         <button class="kfilter-btn on" id="kf-todos" onclick="setKanbanFilter('todos',this)">Todos</button>
         <button class="kfilter-btn" id="kf-hoje" onclick="setKanbanFilter('hoje',this)">📅 Hoje</button>
@@ -3742,6 +3745,7 @@
         <div style="display:flex;gap:6px;align-items:center">
           <button class="addbtn" style="font-size:12px;padding:7px 12px" onclick="openClienteForm()">+ Novo</button>
           <button class="addbtn" style="font-size:12px;padding:7px 12px;background:rgba(0,188,212,.15);color:var(--c);border-color:var(--c)" onclick="openImportContatos()">📱 Importar</button>
+          <button class="addbtn" style="font-size:12px;padding:7px 12px;background:var(--d3);color:var(--fg);border-color:var(--border)" onclick="exportarClientesCSV()">📊 CSV</button>
         </div>
       </div>
       <input class="fi" id="clienteSearch" placeholder="🔍 Buscar por nome ou fone..." style="width:100%;padding:7px 12px;font-size:13px;margin-bottom:12px" oninput="filterClientes(this.value)">
@@ -4450,6 +4454,58 @@
     const _SIG = "\n\n———————————————\nGJ STORE\n_MENSAGEM AUTOMÁTICA — SISTEMA GJ STORE_";
     let allProds = [], allPeds = [];
     let _allProdsFull = false; // true só quando carregado com verTodos=1 (inclui Inativo)
+    // N6: export CSV genérico — BOM UTF-8 pra Excel abrir acentuação certa sem escolher encoding
+    function _csvCell(v) {
+      const s = String(v === undefined || v === null ? "" : v);
+      return /[",\n;]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+    }
+    function _baixarCSV(filename, headers, rows) {
+      const linhas = [headers.map(_csvCell).join(";")].concat(rows.map(r => r.map(_csvCell).join(";")));
+      const csv = "﻿" + linhas.join("\r\n");
+      const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = filename;
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+    }
+    function _csvItensPedido(p) {
+      const raw = String(p["Itens"] || p["Itens (JSON)"] || "").trim();
+      if (!raw || raw === "[]") return "";
+      try {
+        const arr = JSON.parse(raw);
+        if (Array.isArray(arr)) return arr.map(i => (i.nome || i.name || "?") + " x" + Number(i.qtd || i.qty || 1)).join(", ");
+      } catch (e) {}
+      return raw.split("|").map(s => s.trim()).filter(Boolean).join(", ");
+    }
+    function exportarPedidosCSV() {
+      const filtered = getFilteredPeds();
+      const lista = pedTabAtivo === "todos" ? filtered : filtered.filter(p => p["Status"] === pedTabAtivo);
+      if (!lista.length) { toast("Nenhum pedido pra exportar com esse filtro", "err"); return; }
+      const headers = ["ID Pedido", "Data", "Cliente", "Telefone", "Itens", "Subtotal", "Total", "Forma Pagamento", "Status", "Vencimento", "Responsável"];
+      const rows = lista.map(p => [
+        p["ID Pedido"] || "", String(p["Data/Hora"] || "").split(" ")[0], p["Nome Cliente"] || "", p["Telefone"] || "",
+        _csvItensPedido(p), Number(p["Subtotal (R$)"] || p["Total (R$)"] || 0).toFixed(2), Number(p["Total (R$)"] || 0).toFixed(2),
+        p["Forma Pagamento"] || "", p["Status"] || "Pendente", p["Data_Vencimento"] || "", p["Responsavel"] || ""
+      ]);
+      const hoje = new Date().toISOString().split("T")[0];
+      _baixarCSV(`gjstore-pedidos-${hoje}.csv`, headers, rows);
+      toast(`✅ ${rows.length} pedido(s) exportado(s)`);
+    }
+    function exportarClientesCSV() {
+      const lista = _lastClientesList && _lastClientesList.length ? _lastClientesList : [];
+      if (!lista.length) { toast("Nenhum cliente pra exportar", "err"); return; }
+      const headers = ["Nome", "Telefone", "Email", "Score", "Classificação", "Total Gasto", "Qtd Pedidos"];
+      const rows = lista.map(c => [
+        c.nome || c.Nome || "", c.telefone || c.WhatsApp || "", c.Email || c.email || "",
+        c.Score_Atual != null ? c.Score_Atual : "", c.Classificacao || "",
+        Number(c.totalGasto || c.Total_Gasto_RS || 0).toFixed(2),
+        c.pedidos ? c.pedidos.length : (Number(c.Compras_No_Prazo||0) + Number(c.Compras_Com_Atraso||0) + Number(c.Compras_Adiantadas||0))
+      ]);
+      const hoje = new Date().toISOString().split("T")[0];
+      _baixarCSV(`gjstore-clientes-${hoje}.csv`, headers, rows);
+      toast(`✅ ${rows.length} cliente(s) exportado(s)`);
+    }
     let mediaUrls = [];
     let dragId = null;
     let pedOffset = 0;
