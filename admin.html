@@ -4682,9 +4682,14 @@
       if ("Notification" in window) Notification.requestPermission().catch(() => { });
       startNotifPolling();
       // Hash routing — permite voltar direto para uma página (ex: admin.html#prod)
+      // E6.1: sem hash explícito, reabre na última aba visitada (localStorage) em vez de sempre Home
       const hash = location.hash.replace("#", "");
+      let lastPage = "";
+      try { lastPage = localStorage.getItem("gj_admin_page") || ""; } catch(e) {}
       if (hash && document.getElementById("page-" + hash)) {
         goPage(hash, document.getElementById("nav-" + hash));
+      } else if (lastPage && lastPage !== "home" && document.getElementById("page-" + lastPage)) {
+        goPage(lastPage, document.getElementById("nav-" + lastPage));
       } else {
         loadHome('30');
       }
@@ -4719,6 +4724,7 @@
 
       const pageEl = document.getElementById("page-" + id);
       if (!pageEl) return;
+      try { localStorage.setItem("gj_admin_page", id); } catch(e) {} // E6.1: lembra a última aba
 
       document.querySelectorAll(".page").forEach(p => p.classList.remove("on"));
       document.querySelectorAll(".bni").forEach(b => b.classList.remove("on"));
