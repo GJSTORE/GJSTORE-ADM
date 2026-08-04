@@ -890,18 +890,18 @@
       margin-bottom: 13px
     }
 
-    #nocatAlert {
+    #nocatAlert, #nocustoAlert {
       display: none; margin-bottom: 12px;
       background: rgba(255,152,0,.1); border: 1px solid rgba(255,152,0,.35);
       border-radius: 12px; padding: 11px 14px;
       display: none; align-items: center; gap: 10px; cursor: pointer;
       transition: background .2s;
     }
-    #nocatAlert:hover { background: rgba(255,152,0,.18); }
-    #nocatAlert .nca-icon { font-size: 18px; flex-shrink: 0; }
-    #nocatAlert .nca-text { flex: 1; font-size: 13px; color: #ffb300; font-weight: 700; }
-    #nocatAlert .nca-sub { font-size: 11px; color: var(--muted); font-weight: 400; margin-top: 1px; }
-    #nocatAlert .nca-btn { font-size: 11px; background: rgba(255,152,0,.2); border: 1px solid rgba(255,152,0,.4); color: #ffb300; border-radius: 8px; padding: 4px 10px; cursor: pointer; white-space: nowrap; }
+    #nocatAlert:hover, #nocustoAlert:hover { background: rgba(255,152,0,.18); }
+    #nocatAlert .nca-icon, #nocustoAlert .nca-icon { font-size: 18px; flex-shrink: 0; }
+    #nocatAlert .nca-text, #nocustoAlert .nca-text { flex: 1; font-size: 13px; color: #ffb300; font-weight: 700; }
+    #nocatAlert .nca-sub, #nocustoAlert .nca-sub { font-size: 11px; color: var(--muted); font-weight: 400; margin-top: 1px; }
+    #nocatAlert .nca-btn, #nocustoAlert .nca-btn { font-size: 11px; background: rgba(255,152,0,.2); border: 1px solid rgba(255,152,0,.4); color: #ffb300; border-radius: 8px; padding: 4px 10px; cursor: pointer; white-space: nowrap; }
 
     #nocatModal {
       display: none; position: fixed; inset: 0; z-index: 700;
@@ -3175,8 +3175,10 @@
           <option>Inativo</option>
           <option value="__rascunho__">📝 Rascunho</option>
           <option value="__sem_cat__">⚠️ Sem Categoria</option>
+          <option value="__sem_custo__">💰 Sem Custo</option>
         </select>
         <span id="inativeCnt"></span>
+        <button class="addbtn" style="background:var(--d3);color:var(--fg);border-color:var(--border)" onclick="openMargemLoteModal()">🧮 Margem em Lote</button>
         <button class="addbtn" onclick="openModal()">+ Produto</button>
       </div>
       <div id="nocatAlert" onclick="openNoCatModal()">
@@ -3184,6 +3186,14 @@
         <div class="nca-text">
           <span id="nocatCount"></span> produto(s) sem categoria
           <div class="nca-sub">Não aparecem na loja — clique para ver e corrigir</div>
+        </div>
+        <button class="nca-btn">Ver produtos →</button>
+      </div>
+      <div id="nocustoAlert" onclick="document.getElementById('pstatus').value='__sem_custo__';prodFilterChanged()" style="display:none">
+        <span class="nca-icon">💰</span>
+        <div class="nca-text">
+          <span id="nocustoCount"></span> produto(s) sem custo cadastrado
+          <div class="nca-sub">Painel de lucro (Analytics) não calcula margem real sem isso — clique para ver e corrigir</div>
         </div>
         <button class="nca-btn">Ver produtos →</button>
       </div>
@@ -3202,6 +3212,35 @@
       </div>
       <div id="prodLoadMore" style="display:none;text-align:center;margin-top:12px">
         <button class="load-more-btn" onclick="prodShowMore()">Carregar mais →</button>
+      </div>
+    </div>
+
+    <!-- MARGEM EM LOTE -->
+    <div id="modal-margem" class="hidden" style="position:fixed;inset:0;z-index:1200;background:rgba(4,9,15,.88);backdrop-filter:blur(5px);display:flex;align-items:center;justify-content:center;padding:16px" onclick="if(event.target===this)closeMargemLoteModal()">
+      <div style="width:100%;max-width:640px;max-height:90vh;overflow-y:auto;background:var(--d2);border:1px solid var(--border);border-radius:16px;padding:18px">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
+          <div style="font-family:var(--H);font-weight:800;font-size:16px">🧮 Definir Margem em Lote</div>
+          <button onclick="closeMargemLoteModal()" style="background:rgba(244,67,54,.15);border:1px solid rgba(244,67,54,.3);color:var(--r);width:30px;height:30px;border-radius:50%;cursor:pointer;font-size:15px">✕</button>
+        </div>
+        <div style="font-size:11px;color:var(--muted);margin-bottom:12px">Selecione os produtos, defina a margem % e o preço de venda é recalculado a partir do custo cadastrado. Produto sem custo cadastrado é ignorado (não é alterado) — o filtro "💰 Sem Custo" na lista de Produtos ajuda a achar e corrigir.</div>
+        <div style="display:flex;gap:6px;margin-bottom:8px;flex-wrap:wrap">
+          <input class="fi" id="margemSearch" placeholder="🔍 Buscar produto..." style="flex:2;min-width:140px;padding:7px 10px;font-size:12px" oninput="_margemPopulateGrid()">
+          <select class="fi" id="margemCat" style="flex:1;min-width:110px;padding:7px 10px;font-size:12px" onchange="_margemPopulateGrid()"><option value="">Todas categorias</option></select>
+          <button class="addbtn" style="font-size:11px;padding:7px 10px" onclick="_margemSelecionarTodosFiltrados()">Selecionar filtrados</button>
+          <button class="addbtn" style="font-size:11px;padding:7px 10px;background:var(--d3);color:var(--fg)" onclick="_margemLimparSel()">Limpar seleção</button>
+        </div>
+        <div id="margemGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:10px;max-height:280px;overflow-y:auto;margin-bottom:12px;padding:2px"></div>
+        <div style="background:var(--d3);border-radius:12px;padding:12px;border:1px solid var(--border)">
+          <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+            <div style="font-size:12px;font-weight:700" id="margemSelCount">0 selecionado(s)</div>
+            <div style="flex:1;min-width:120px;display:flex;align-items:center;gap:6px">
+              <input class="fi" id="margemPct" type="number" step="1" placeholder="Ex: 100" style="padding:7px 10px;font-size:13px;width:90px" oninput="_margemPreview()">
+              <span style="font-size:12px;color:var(--muted)">% de margem sobre o custo</span>
+            </div>
+          </div>
+          <div id="margemPreviewBox" style="font-size:11px;color:var(--muted);margin-top:8px"></div>
+          <button class="savebtn" style="width:100%;margin-top:10px" onclick="_margemAplicar()">💾 Aplicar aos selecionados</button>
+        </div>
       </div>
     </div>
 
@@ -5354,12 +5393,20 @@
         if (semCat.length > 0) { alertEl.style.display = "flex"; if (cntNc) cntNc.textContent = semCat.length; }
         else { alertEl.style.display = "none"; }
       }
+      const semCusto = allProds.filter(p => p["Status"] !== "Inativo" && !Number(p["Custo_Unitario"] || 0));
+      const alertCustoEl = document.getElementById("nocustoAlert");
+      const cntNcu = document.getElementById("nocustoCount");
+      if (alertCustoEl) {
+        if (semCusto.length > 0) { alertCustoEl.style.display = "flex"; if (cntNcu) cntNcu.textContent = semCusto.length; }
+        else { alertCustoEl.style.display = "none"; }
+      }
       _checkFixIdsAlert();
       const list = allProds.filter(p => {
         const mq = !q || (p["Nome do Produto"] || "").toLowerCase().includes(q);
         const mcat = !cat || cat === "__sem_cat__" || p["Categoria"] === cat;
         let mst;
         if (stat === "__sem_cat__") mst = !String(p["Categoria"] || "").trim();
+        else if (stat === "__sem_custo__") mst = !Number(p["Custo_Unitario"] || 0);
         else if (stat === "__rascunho__") mst = String(p["Publicado"] || "").trim().toLowerCase() === "não";
         else mst = !stat || p["Status"] === stat;
         return mq && mcat && mst;
@@ -5402,6 +5449,116 @@
       }).join("");
       const lm = document.getElementById("prodLoadMore");
       if (lm) lm.style.display = batch.length < list.length ? "block" : "none";
+    }
+
+    // MARGEM EM LOTE — seleciona N produtos, define % de margem sobre o custo, recalcula
+    // "Preço (R$)" via atualizarProdutosBatch. Produto sem Custo_Unitario cadastrado é ignorado
+    // (fica desabilitado na grade) sem travar os demais.
+    let _margemSel = new Set();
+    function openMargemLoteModal() {
+      _margemSel.clear();
+      document.getElementById("margemPct").value = "";
+      document.getElementById("margemPreviewBox").innerHTML = "";
+      document.getElementById("margemSearch").value = "";
+      const catSel = document.getElementById("margemCat");
+      if (catSel) {
+        const cats = [...new Set(allProds.map(p => p["Categoria"]).filter(Boolean))].sort();
+        catSel.innerHTML = `<option value="">Todas categorias</option>` + cats.map(c => `<option value="${c}">${c}</option>`).join("");
+      }
+      _margemPopulateGrid();
+      document.getElementById("modal-margem").classList.remove("hidden");
+    }
+    function closeMargemLoteModal() {
+      document.getElementById("modal-margem").classList.add("hidden");
+    }
+    function _margemFiltrados() {
+      const q = (document.getElementById("margemSearch")?.value || "").toLowerCase().trim();
+      const catF = document.getElementById("margemCat")?.value || "";
+      return allProds.filter(p => {
+        if (p["Status"] === "Inativo") return false;
+        if (catF && p["Categoria"] !== catF) return false;
+        if (q && !(p["Nome do Produto"] || "").toLowerCase().includes(q)) return false;
+        return true;
+      });
+    }
+    function _margemPopulateGrid() {
+      const grid = document.getElementById("margemGrid");
+      if (!grid) return;
+      const prods = _margemFiltrados();
+      if (!prods.length) { grid.innerHTML = `<div style="color:var(--muted);font-size:12px;padding:16px 0">Nenhum produto encontrado</div>`; return; }
+      grid.innerHTML = prods.map(p => {
+        const id = String(p["ID"] || "");
+        const nome = p["Nome do Produto"] || "—";
+        const img = p["Imagem 1 (URL)"] || "";
+        const custo = Number(p["Custo_Unitario"] || 0);
+        const semCusto = !custo;
+        const sel = _margemSel.has(id);
+        const safeId = id.replace(/'/g, "\\'");
+        return `<div class="mkt-bulk-item${sel ? " sel" : ""}" data-mid="${id}" style="${semCusto ? "opacity:.4;cursor:not-allowed" : ""}" onclick="${semCusto ? "" : `_margemToggle('${safeId}', this)`}" title="${semCusto ? "Sem custo cadastrado — edite o produto pra habilitar" : ""}">
+          <div class="mkt-bulk-check">${sel ? "✓" : ""}</div>
+          ${img ? `<img src="${img}" loading="lazy" style="pointer-events:none">` : `<div class="mkt-bulk-noimg" style="pointer-events:none">📷</div>`}
+          <div class="mkt-bulk-name" style="pointer-events:none">${nome}</div>
+          <div class="mkt-bulk-price" style="pointer-events:none">${semCusto ? "⚠️ sem custo" : "Custo: " + fmt(custo)}</div>
+        </div>`;
+      }).join("");
+    }
+    function _margemToggle(id, el) {
+      if (_margemSel.has(id)) _margemSel.delete(id); else _margemSel.add(id);
+      el.classList.toggle("sel");
+      const chk = el.querySelector(".mkt-bulk-check");
+      if (chk) chk.textContent = _margemSel.has(id) ? "✓" : "";
+      _margemPreview();
+    }
+    function _margemSelecionarTodosFiltrados() {
+      _margemFiltrados().forEach(p => { if (Number(p["Custo_Unitario"] || 0)) _margemSel.add(String(p["ID"] || "")); });
+      _margemPopulateGrid();
+      _margemPreview();
+    }
+    function _margemLimparSel() {
+      _margemSel.clear();
+      _margemPopulateGrid();
+      _margemPreview();
+    }
+    function _margemPreview() {
+      const cnt = document.getElementById("margemSelCount");
+      if (cnt) cnt.textContent = _margemSel.size + " selecionado(s)";
+      const pct = Number(document.getElementById("margemPct")?.value);
+      const box = document.getElementById("margemPreviewBox");
+      if (!box) return;
+      if (!_margemSel.size || !pct) { box.innerHTML = ""; return; }
+      const selecionados = allProds.filter(p => _margemSel.has(String(p["ID"] || "")));
+      const linhas = selecionados.slice(0, 5).map(p => {
+        const custo = Number(p["Custo_Unitario"] || 0);
+        const novoPreco = custo * (1 + pct / 100);
+        return `<div>${p["Nome do Produto"]}: custo ${fmt(custo)} → novo preço ${fmt(novoPreco)}</div>`;
+      }).join("");
+      const resto = selecionados.length > 5 ? `<div>+ ${selecionados.length - 5} produto(s)...</div>` : "";
+      box.innerHTML = linhas + resto;
+    }
+    async function _margemAplicar() {
+      const pct = Number(document.getElementById("margemPct")?.value);
+      if (!_margemSel.size) { toast("Selecione ao menos 1 produto", "err"); return; }
+      if (!pct && pct !== 0) { toast("Informe a margem %", "err"); return; }
+      if (pct <= -100) { toast("Margem inválida", "err"); return; }
+      const selecionados = allProds.filter(p => _margemSel.has(String(p["ID"] || "")));
+      const comCusto = selecionados.filter(p => Number(p["Custo_Unitario"] || 0) > 0);
+      const semCustoQtd = selecionados.length - comCusto.length;
+      if (!comCusto.length) { toast("Nenhum dos selecionados tem custo cadastrado", "err"); return; }
+      const adminSenha = prompt(`Confirme a SENHA DE ADMIN para atualizar o preço de ${comCusto.length} produto(s):`);
+      if (adminSenha === null) return;
+      const itens = comCusto.map(p => {
+        const custo = Number(p["Custo_Unitario"] || 0);
+        const novoPreco = Math.round(custo * (1 + pct / 100) * 100) / 100;
+        return { id: String(p["ID"] || ""), "Preço (R$)": novoPreco };
+      });
+      try {
+        const res = await apiPost("atualizarProdutosBatch", { itens, adminSenha });
+        if (res.ok) {
+          toast(`✅ ${res.updated} produto(s) atualizado(s)` + (semCustoQtd ? ` · ${semCustoQtd} sem custo ignorado(s)` : ""));
+          closeMargemLoteModal();
+          allProds = []; await loadProds();
+        } else toast(res.erro || res.error || "Erro", "err");
+      } catch (e) { toast("Erro de conexão", "err"); }
     }
 
     // MODAL PRODUTO
