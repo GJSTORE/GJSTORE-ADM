@@ -3808,6 +3808,13 @@
           </div>
           <button onclick="_autoTestar('testarGarantia')" style="background:var(--d2);border:1px solid var(--border);color:var(--fg);border-radius:8px;padding:6px 12px;cursor:pointer;font-size:12px;white-space:nowrap">Verificar agora</button>
         </div>
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px;background:var(--d3);border-radius:10px;border:1px solid var(--border)">
+          <div>
+            <div style="font-size:13px;font-weight:600">💾 Backup da Planilha (N19)</div>
+            <div style="font-size:11px;color:var(--muted)">Cópia da planilha inteira no Drive (retenção de 30 dias)</div>
+          </div>
+          <button onclick="_autoTestar('testarBackup')" style="background:var(--d2);border:1px solid var(--border);color:var(--fg);border-radius:8px;padding:6px 12px;cursor:pointer;font-size:12px;white-space:nowrap">Rodar agora</button>
+        </div>
       </div>
     </div>
 
@@ -3822,6 +3829,7 @@
         <div style="display:flex;gap:10px;align-items:flex-start"><span style="color:var(--c);flex-shrink:0">⏰</span><span><b>Alerta SLA (1h)</b> — precisa do trigger ativo. Avisa se pedido Pendente passou de 24h sem resposta.</span></div>
         <div style="display:flex;gap:10px;align-items:flex-start"><span style="color:var(--c);flex-shrink:0">⏰</span><span><b>Cobranças D-1 (8h)</b> — precisa do trigger ativo. Email diário com links WPP prontos para cobrar vencimentos de amanhã.</span></div>
         <div style="display:flex;gap:10px;align-items:flex-start"><span style="color:var(--c);flex-shrink:0">⏰</span><span><b>Garantia (10h, W5)</b> — precisa do trigger ativo. Email diário com links WPP prontos pra checar pedidos entregues há 7 dias.</span></div>
+        <div style="display:flex;gap:10px;align-items:flex-start"><span style="color:var(--c);flex-shrink:0">⏰</span><span><b>Backup da Planilha (3h, N19)</b> — precisa do trigger ativo. Cópia diária inteira no Drive, pasta "GJ Store - Backups Automaticos", apaga sozinho depois de 30 dias.</span></div>
       </div>
     </div>
 
@@ -4398,7 +4406,9 @@
   <script>
     // Init tema + sessão antes de qualquer render
     (function() {
-      let t = localStorage.getItem("gj_theme") || "cyberpunk";
+      const saved = localStorage.getItem("gj_theme");
+      // N7: sem preferência salva ainda → respeita o SO (claro no sistema = abre no tema claro)
+      let t = saved || (window.matchMedia && window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "cyberpunk");
       if (t === "botafogo") { t = "gold"; localStorage.setItem("gj_theme", t); }
       if (t !== "cyberpunk") document.documentElement.className = "theme-" + t;
 

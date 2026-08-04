@@ -622,7 +622,9 @@ body{background:var(--dark);color:var(--text);font-family:var(--B);min-height:10
 <script>
 // ── TEMA ─────────────────────────────────────────────────────────
 (function() {
-  let t = localStorage.getItem("gj_theme") || "cyberpunk";
+  const saved = localStorage.getItem("gj_theme");
+  // N7: sem preferência salva ainda → respeita o SO (claro no sistema = abre no tema claro)
+  let t = saved || (window.matchMedia && window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "cyberpunk");
   if (t === "botafogo" || t === "gold") { t = "cyberpunk"; localStorage.setItem("gj_theme", t); }
   document.documentElement.className = t === "cyberpunk" ? "" : "theme-" + t;
 })();

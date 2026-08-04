@@ -1,4 +1,4 @@
-const CACHE = 'gjstore-adm-v5';
+const CACHE = 'gjstore-adm-v6';
 const SHELL = ['./admin.html', './gestao_unificada.html', './config.js', './manifest-admin.json'];
 
 self.addEventListener('install', e => {
