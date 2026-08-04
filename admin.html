@@ -3747,7 +3747,7 @@
         </div>
         <div class="fg" id="fDestRefVideoWrap" style="display:none">
           <label class="fl">Link do vídeo (YouTube)</label>
-          <input class="fi" id="fDestRefVideo" placeholder="https://www.youtube.com/watch?v=...">
+          <input class="fi" id="fDestRefVideo" placeholder="https://www.youtube.com/watch?v=..." oninput="_destUpdatePreview()">
         </div>
         <div class="fg" id="fDestUploadWrap">
           <label class="fl">Ou envie uma imagem/vídeo personalizado <span style="color:var(--muted);font-weight:400">(substitui a foto do produto / vira o banner da promo)</span></label>
@@ -3760,10 +3760,14 @@
           <input type="hidden" id="fDestMediaCustom">
           <div id="fDestUploadPreview" style="margin-top:8px"></div>
         </div>
-        <div class="fg"><label class="fl">Texto (título/legenda exibida)</label><input class="fi" id="fDestTexto" placeholder="Ex: Confira o lançamento da semana!"></div>
+        <div class="fg"><label class="fl">Texto (título/legenda exibida)</label><input class="fi" id="fDestTexto" placeholder="Ex: Confira o lançamento da semana!" oninput="_destUpdatePreview()"></div>
         <div class="frow">
           <div class="fg"><label class="fl">Início (opcional)</label><input class="fi" id="fDestDataIni" type="date"></div>
           <div class="fg"><label class="fl">Fim (opcional)</label><input class="fi" id="fDestDataFim" type="date"></div>
+        </div>
+        <div class="fg">
+          <label class="fl">👁️ Preview (como vai aparecer na home do site)</label>
+          <div id="destPreviewBox" style="background:#04090f;border:1px solid var(--border);border-radius:14px;padding:14px;min-height:60px;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:12px">Preencha os campos acima pra ver o preview</div>
         </div>
         <div style="display:flex;gap:8px;margin-top:12px">
           <button class="savebtn" id="saveDestaqueBtn" onclick="salvarDestaqueAdmin()">💾 Salvar</button>
@@ -10543,15 +10547,17 @@
 
     // DESTAQUES (G5.1) — conteúdo configurável na home do site (produto/vídeo/promo)
     let allDestaques = [];
+    let _destaquesCliques = {};
     async function loadDestaques() {
       const el = document.getElementById("destaquesList");
       if (!el) return;
       el.innerHTML = `<div class="loading"><div class="spin"></div>Carregando...</div>`;
       try {
-        const proms = [apiGet("getDestaques")];
+        const proms = [apiGet("getDestaques"), apiGet("getDestaquesCliques").catch(() => null)];
         if (!allProds.length) proms.push(apiGet("getProdutos", { verTodos: "1" }).catch(() => null));
-        const [r, rProd] = await Promise.all(proms);
+        const [r, rCliques, rProd] = await Promise.all(proms);
         allDestaques = r.destaques || [];
+        _destaquesCliques = (rCliques && rCliques.cliques) || {};
         if (rProd && rProd.produtos) allProds = rProd.produtos;
         renderDestaquesList();
       } catch(e) { el.innerHTML = `<div class="empty">Erro ao carregar destaques.</div>`; }
@@ -10570,6 +10576,7 @@
         const ico = tipo === "Produto" ? "🛒" : tipo === "Video" ? "🎬" : "📢";
         const refTxt = tipo === "Produto" ? _destNomeProduto(d["Ref"]) : (tipo === "Video" ? d["Ref"] : "");
         const periodo = (d["Data_Inicio"] || d["Data_Fim"]) ? `${d["Data_Inicio"] || "—"} até ${d["Data_Fim"] || "—"}` : "Sempre ativo (sem período)";
+        const cliques = _destaquesCliques[String(d["ID"])] || 0;
         return `<div class="cat-card" style="flex-direction:column;align-items:flex-start">
           <div style="display:flex;align-items:center;justify-content:space-between;width:100%">
             <span style="font-family:var(--H);font-size:14px;font-weight:800">${ico} ${tipo}</span>
@@ -10578,6 +10585,7 @@
           ${d["Texto"] ? `<div style="font-size:13px;margin-top:6px">${d["Texto"]}</div>` : ""}
           ${refTxt ? `<div style="font-size:12px;color:var(--muted);margin-top:2px">${refTxt}</div>` : ""}
           <div style="font-size:11px;color:var(--muted);margin-top:4px">${periodo}</div>
+          ${tipo === "Produto" ? `<div style="font-size:11px;color:var(--c);margin-top:2px">👆 ${cliques} clique${cliques === 1 ? "" : "s"}</div>` : ""}
           <div class="cat-actions" style="margin-top:8px">
             <button class="cat-btn" data-dest-edit="${d["ID"]}">✏️ Editar</button>
             <button class="cat-btn" style="color:var(--r)" data-dest-del="${d["ID"]}">🗑️ Excluir</button>
@@ -10590,6 +10598,59 @@
       document.getElementById("fDestRefProdutoWrap").style.display = tipo === "Produto" ? "block" : "none";
       document.getElementById("fDestRefVideoWrap").style.display = tipo === "Video" ? "block" : "none";
       document.getElementById("fDestUploadWrap").style.display = tipo === "Video" ? "none" : "block";
+      _destUpdatePreview();
+    }
+    // Preview ao vivo — espelha o mesmo HTML que o index.html monta pro destaque real,
+    // simplificado com estilo inline (admin.html não carrega o CSS .dest-* do site)
+    function _destUpdatePreview() {
+      const box = document.getElementById("destPreviewBox");
+      if (!box) return;
+      const tipo = document.getElementById("fDestTipo").value;
+      const texto = (document.getElementById("fDestTexto").value || "").trim();
+      const mediaCustom = document.getElementById("fDestMediaCustom").value;
+      const isVideoCustom = mediaCustom && /\.(mp4|webm|mov)/i.test(mediaCustom);
+      const vazio = msg => { box.style.cssText = "background:#04090f;border:1px solid var(--border);border-radius:14px;padding:14px;min-height:60px;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:12px"; box.innerHTML = msg; };
+
+      if (tipo === "Video") {
+        const ref = (document.getElementById("fDestRefVideo").value || "").trim();
+        const m = ref.match(/(?:youtube\.com\/(?:watch\?v=|embed\/|shorts\/)|youtu\.be\/)([A-Za-z0-9_-]{11})/);
+        if (!m) { vazio("Cole um link válido do YouTube pra ver o preview"); return; }
+        box.style.cssText = "background:#04090f;border:1px solid var(--border);border-radius:14px;overflow:hidden";
+        box.innerHTML = `<div style="position:relative">
+          <div style="background:#ff6d00;color:#fff;font-size:10px;font-weight:800;padding:3px 10px;border-radius:20px;position:absolute;top:8px;left:8px;z-index:2">🎬 Destaque</div>
+          <div style="aspect-ratio:16/9;background:#000"><iframe src="https://www.youtube.com/embed/${m[1]}" style="width:100%;height:100%;border:0" allowfullscreen></iframe></div>
+          ${texto ? `<div style="padding:8px 10px;font-size:12px;font-weight:600;color:#e2f4ff">${texto}</div>` : ""}
+        </div>`;
+      } else if (tipo === "Produto") {
+        const prodId = document.getElementById("fDestRef").value;
+        const p = allProds.find(x => String(x["ID"]) === String(prodId));
+        if (!p) { vazio("Selecione um produto pra ver o preview"); return; }
+        const idx = Number(document.getElementById("fDestImagemIdx").value || 0);
+        const imgs = [p["Imagem 1 (URL)"], p["Imagem 2 (URL)"], p["Imagem 3 (URL)"]].filter(Boolean);
+        const imgProd = imgs[idx] || imgs[0] || "";
+        const midia = mediaCustom
+          ? (isVideoCustom ? `<video src="${mediaCustom}" style="width:84px;height:84px;object-fit:cover;border-radius:12px" muted></video>` : `<img src="${mediaCustom}" style="width:84px;height:84px;object-fit:cover;border-radius:12px">`)
+          : (imgProd ? `<img src="${imgProd}" style="width:84px;height:84px;object-fit:cover;border-radius:12px">` : `<div style="width:84px;height:84px;border-radius:12px;background:#0b1728;display:flex;align-items:center;justify-content:center;font-size:24px">📦</div>`);
+        const pr = Number(p["Preço (R$)"] || 0), pm = Number(p["Preço Promo (R$)"] || 0);
+        const preco = pm > 0 && pm < pr ? pm : pr;
+        box.style.cssText = "background:#04090f;border:1px solid var(--border);border-radius:14px;padding:14px 14px 14px 14px;position:relative";
+        box.innerHTML = `<div style="background:#ff6d00;color:#fff;font-size:10px;font-weight:800;padding:3px 10px;border-radius:20px;position:absolute;top:8px;left:8px">⭐ Destaque</div>
+          <div style="display:flex;align-items:center;gap:12px;padding-top:14px">
+            ${midia}
+            <div style="flex:1;min-width:0">
+              ${texto ? `<div style="font-size:11px;color:var(--muted);font-weight:600">${texto}</div>` : ""}
+              <div style="font-size:14px;font-weight:800;color:#e2f4ff;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${p["Nome do Produto"] || "—"}</div>
+              <div style="font-size:15px;font-weight:800;color:#00e676;margin-top:2px">${fmt(preco)}</div>
+            </div>
+          </div>`;
+      } else if (tipo === "Promo") {
+        if (!texto && !mediaCustom) { vazio("Escreva um texto ou envie uma imagem/vídeo pra ver o preview"); return; }
+        const midia = mediaCustom
+          ? (isVideoCustom ? `<video src="${mediaCustom}" style="width:100%;display:block" muted></video>` : `<img src="${mediaCustom}" style="width:100%;display:block">`)
+          : "";
+        box.style.cssText = "border-radius:14px;overflow:hidden;text-align:center;background:linear-gradient(135deg,rgba(255,109,0,.16),rgba(0,188,212,.12))";
+        box.innerHTML = `${midia}${texto ? `<div style="padding:16px;font-size:14px;font-weight:800;color:#e2f4ff">📢 ${texto}</div>` : ""}`;
+      }
     }
     function _destRenderImgPicker(prodId, selectedIdx) {
       const p = allProds.find(pp => String(pp["ID"]) === String(prodId));
@@ -10607,6 +10668,7 @@
       document.querySelectorAll("#fDestImgOptions img").forEach(img => {
         img.style.borderColor = Number(img.dataset.idx) === idx ? "var(--g)" : "transparent";
       });
+      _destUpdatePreview();
     }
     async function _destUpload(input) {
       const file = input.files[0];
@@ -10623,11 +10685,13 @@
           : `<img src="${url}" style="max-width:160px;max-height:120px;border-radius:8px;object-fit:cover">`;
       } catch (e) { statusEl.textContent = "❌ Erro no upload"; }
       input.value = "";
+      _destUpdatePreview();
     }
     function _destRemoverUpload() {
       document.getElementById("fDestMediaCustom").value = "";
       document.getElementById("fDestUploadPreview").innerHTML = "";
       document.getElementById("fDestUploadStatus").textContent = "";
+      _destUpdatePreview();
     }
     function _destBuscaProduto(q) {
       const el = document.getElementById("fDestRefResultados");
@@ -10635,7 +10699,11 @@
       if (!q) { el.innerHTML = ""; return; }
       const achados = allProds.filter(p => (p["Nome do Produto"] || p["Nome"] || "").toLowerCase().includes(q)).slice(0, 8);
       if (!achados.length) { el.innerHTML = `<div style="font-size:12px;color:var(--muted);padding:6px">Nenhum produto encontrado.</div>`; return; }
-      el.innerHTML = achados.map(p => `<div style="padding:6px 8px;font-size:12px;cursor:pointer;border-radius:8px" onmouseover="this.style.background='var(--d3)'" onmouseout="this.style.background=''" onclick="_destSelecionaProduto('${p["ID"]}')">${p["Nome do Produto"] || p["Nome"]}</div>`).join("");
+      el.innerHTML = achados.map(p => {
+        const img = p["Imagem 1 (URL)"] || "";
+        const thumb = img ? `<img src="${img}" style="width:32px;height:32px;object-fit:cover;border-radius:6px;flex-shrink:0">` : `<div style="width:32px;height:32px;border-radius:6px;background:var(--d3);display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0">📦</div>`;
+        return `<div style="padding:6px 8px;font-size:12px;cursor:pointer;border-radius:8px;display:flex;align-items:center;gap:8px" onmouseover="this.style.background='var(--d3)'" onmouseout="this.style.background=''" onclick="_destSelecionaProduto('${p["ID"]}')">${thumb}<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${p["Nome do Produto"] || p["Nome"]}</span></div>`;
+      }).join("");
     }
     function _destSelecionaProduto(id) {
       document.getElementById("fDestRef").value = id;
@@ -10643,6 +10711,7 @@
       document.getElementById("fDestRefResultados").innerHTML = "";
       document.getElementById("fDestRefBusca").value = "";
       _destRenderImgPicker(id, 0);
+      _destUpdatePreview();
     }
     function openDestaqueForm(id) {
       const d = id ? allDestaques.find(x => String(x["ID"]) === String(id)) : null;
