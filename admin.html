@@ -3567,6 +3567,9 @@
         <button class="mais-item" onclick="closeMaisSheet();goPage('automacoes',document.getElementById('nav-mais'))">
           <span class="mais-ico">🤖</span>Automações
         </button>
+        <button class="mais-item" onclick="closeMaisSheet();goPage('destaques',document.getElementById('nav-mais'))">
+          <span class="mais-ico">⭐</span>Destaque Home
+        </button>
       </div>
     </div>
 
@@ -3634,6 +3637,57 @@
       </div>
       <div id="cuponsList">
         <div class="empty">Acesse esta aba para carregar os cupons.</div>
+      </div>
+    </div>
+
+    <!-- DESTAQUES (G5.1) -->
+    <div class="page" id="page-destaques">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+        <div style="font-family:var(--H);font-weight:800;font-size:17px">⭐ Destaque da Home</div>
+        <button class="addbtn" onclick="openDestaqueForm()">+ Novo</button>
+      </div>
+      <div style="font-size:12px;color:var(--muted);margin-bottom:12px">Mostra um produto, vídeo do YouTube ou texto promocional em destaque na home do site. Só um fica ativo por vez (o primeiro dentro do período de datas).</div>
+      <div id="destaqueFormSection" style="display:none;background:var(--d2);border-radius:14px;padding:16px;margin-bottom:16px;border:1px solid var(--border)">
+        <div style="font-family:var(--H);font-weight:700;font-size:14px;margin-bottom:12px" id="destaqueFormTitle">Novo Destaque</div>
+        <input type="hidden" id="fDestId">
+        <div class="frow">
+          <div class="fg"><label class="fl">Tipo *</label>
+            <select class="fi" id="fDestTipo" onchange="_destTipoChanged()">
+              <option value="Produto">🛒 Produto</option>
+              <option value="Video">🎬 Vídeo (YouTube)</option>
+              <option value="Promo">📢 Promo / Texto</option>
+            </select>
+          </div>
+          <div class="fg"><label class="fl">Status</label>
+            <select class="fi" id="fDestAtivo">
+              <option value="Sim">Ativo</option>
+              <option value="Não">Inativo</option>
+            </select>
+          </div>
+        </div>
+        <div class="fg" id="fDestRefProdutoWrap">
+          <label class="fl">Produto</label>
+          <input class="fi" id="fDestRefBusca" placeholder="Buscar produto por nome..." oninput="_destBuscaProduto(this.value)">
+          <div id="fDestRefResultados" style="max-height:160px;overflow:auto;margin-top:4px"></div>
+          <input type="hidden" id="fDestRef">
+          <div id="fDestRefSelecionado" style="font-size:12px;color:var(--c);margin-top:4px"></div>
+        </div>
+        <div class="fg" id="fDestRefVideoWrap" style="display:none">
+          <label class="fl">Link do vídeo (YouTube)</label>
+          <input class="fi" id="fDestRefVideo" placeholder="https://www.youtube.com/watch?v=...">
+        </div>
+        <div class="fg"><label class="fl">Texto (título/legenda exibida)</label><input class="fi" id="fDestTexto" placeholder="Ex: Confira o lançamento da semana!"></div>
+        <div class="frow">
+          <div class="fg"><label class="fl">Início (opcional)</label><input class="fi" id="fDestDataIni" type="date"></div>
+          <div class="fg"><label class="fl">Fim (opcional)</label><input class="fi" id="fDestDataFim" type="date"></div>
+        </div>
+        <div style="display:flex;gap:8px;margin-top:12px">
+          <button class="savebtn" id="saveDestaqueBtn" onclick="salvarDestaqueAdmin()">💾 Salvar</button>
+          <button class="savebtn" style="background:var(--d3)" onclick="closeDestaqueForm()">Cancelar</button>
+        </div>
+      </div>
+      <div id="destaquesList">
+        <div class="empty">Acesse esta aba para carregar os destaques.</div>
       </div>
     </div>
 
@@ -4717,7 +4771,7 @@
     }
 
     // NAVIGATION
-    const MAIS_PAGES = ["doc", "mkt", "cat", "analytics", "cupons", "op", "clientes", "automacoes"];
+    const MAIS_PAGES = ["doc", "mkt", "cat", "analytics", "cupons", "op", "clientes", "automacoes", "destaques"];
     function goPage(id, btn) {
       // score foi unificado em clientes
       if (id === "score") { goPage("clientes", btn); return; }
@@ -4746,6 +4800,7 @@
       if (id === "op") loadOperadores();
       if (id === "clientes") loadClientes();
       if (id === "automacoes") loadAutoMeta();
+      if (id === "destaques") loadDestaques();
     }
 
     function openMaisSheet() {
@@ -10142,6 +10197,126 @@
       const toggleBtn = e.target.closest("[data-cup-toggle]");
       if (editBtn) { openCupomForm(editBtn.dataset.cupEdit); return; }
       if (toggleBtn) { toggleCupom(toggleBtn.dataset.cupToggle, toggleBtn.dataset.cupAtivo === "true"); return; }
+    });
+
+    // DESTAQUES (G5.1) — conteúdo configurável na home do site (produto/vídeo/promo)
+    let allDestaques = [];
+    async function loadDestaques() {
+      const el = document.getElementById("destaquesList");
+      if (!el) return;
+      el.innerHTML = `<div class="loading"><div class="spin"></div>Carregando...</div>`;
+      try {
+        const proms = [apiGet("getDestaques")];
+        if (!allProds.length) proms.push(apiGet("getProdutos", { verTodos: "1" }).catch(() => null));
+        const [r, rProd] = await Promise.all(proms);
+        allDestaques = r.destaques || [];
+        if (rProd && rProd.produtos) allProds = rProd.produtos;
+        renderDestaquesList();
+      } catch(e) { el.innerHTML = `<div class="empty">Erro ao carregar destaques.</div>`; }
+    }
+    function _destNomeProduto(id) {
+      const p = allProds.find(pp => String(pp["ID"]) === String(id));
+      return p ? (p["Nome do Produto"] || p["Nome"] || id) : id;
+    }
+    function renderDestaquesList() {
+      const el = document.getElementById("destaquesList");
+      if (!el) return;
+      if (!allDestaques.length) { el.innerHTML = `<div class="empty">Nenhum destaque cadastrado.<br>Clique em <b>+ Novo</b> para adicionar.</div>`; return; }
+      el.innerHTML = allDestaques.map(d => {
+        const ativo = String(d["Ativo"] || "").toLowerCase() === "sim";
+        const tipo = d["Tipo"] || "—";
+        const ico = tipo === "Produto" ? "🛒" : tipo === "Video" ? "🎬" : "📢";
+        const refTxt = tipo === "Produto" ? _destNomeProduto(d["Ref"]) : (tipo === "Video" ? d["Ref"] : "");
+        const periodo = (d["Data_Inicio"] || d["Data_Fim"]) ? `${d["Data_Inicio"] || "—"} até ${d["Data_Fim"] || "—"}` : "Sempre ativo (sem período)";
+        return `<div class="cat-card" style="flex-direction:column;align-items:flex-start">
+          <div style="display:flex;align-items:center;justify-content:space-between;width:100%">
+            <span style="font-family:var(--H);font-size:14px;font-weight:800">${ico} ${tipo}</span>
+            <span style="font-size:11px;padding:3px 9px;border-radius:20px;${ativo ? "color:var(--g);background:rgba(0,230,118,.12);border:1px solid rgba(0,230,118,.3)" : "color:var(--muted);background:var(--d3)"}">${ativo ? "Ativo" : "Inativo"}</span>
+          </div>
+          ${d["Texto"] ? `<div style="font-size:13px;margin-top:6px">${d["Texto"]}</div>` : ""}
+          ${refTxt ? `<div style="font-size:12px;color:var(--muted);margin-top:2px">${refTxt}</div>` : ""}
+          <div style="font-size:11px;color:var(--muted);margin-top:4px">${periodo}</div>
+          <div class="cat-actions" style="margin-top:8px">
+            <button class="cat-btn" data-dest-edit="${d["ID"]}">✏️ Editar</button>
+            <button class="cat-btn" style="color:var(--r)" data-dest-del="${d["ID"]}">🗑️ Excluir</button>
+          </div>
+        </div>`;
+      }).join("");
+    }
+    function _destTipoChanged() {
+      const tipo = document.getElementById("fDestTipo").value;
+      document.getElementById("fDestRefProdutoWrap").style.display = tipo === "Produto" ? "block" : "none";
+      document.getElementById("fDestRefVideoWrap").style.display = tipo === "Video" ? "block" : "none";
+    }
+    function _destBuscaProduto(q) {
+      const el = document.getElementById("fDestRefResultados");
+      q = q.trim().toLowerCase();
+      if (!q) { el.innerHTML = ""; return; }
+      const achados = allProds.filter(p => (p["Nome do Produto"] || p["Nome"] || "").toLowerCase().includes(q)).slice(0, 8);
+      if (!achados.length) { el.innerHTML = `<div style="font-size:12px;color:var(--muted);padding:6px">Nenhum produto encontrado.</div>`; return; }
+      el.innerHTML = achados.map(p => `<div style="padding:6px 8px;font-size:12px;cursor:pointer;border-radius:8px" onmouseover="this.style.background='var(--d3)'" onmouseout="this.style.background=''" onclick="_destSelecionaProduto('${p["ID"]}')">${p["Nome do Produto"] || p["Nome"]}</div>`).join("");
+    }
+    function _destSelecionaProduto(id) {
+      document.getElementById("fDestRef").value = id;
+      document.getElementById("fDestRefSelecionado").textContent = "Selecionado: " + _destNomeProduto(id);
+      document.getElementById("fDestRefResultados").innerHTML = "";
+      document.getElementById("fDestRefBusca").value = "";
+    }
+    function openDestaqueForm(id) {
+      const d = id ? allDestaques.find(x => String(x["ID"]) === String(id)) : null;
+      document.getElementById("destaqueFormTitle").textContent = d ? "Editar Destaque" : "Novo Destaque";
+      document.getElementById("fDestId").value = d ? d["ID"] : "";
+      document.getElementById("fDestTipo").value = d ? (d["Tipo"] || "Produto") : "Produto";
+      document.getElementById("fDestAtivo").value = d ? (String(d["Ativo"]).toLowerCase() === "sim" ? "Sim" : "Não") : "Sim";
+      document.getElementById("fDestTexto").value = d ? d["Texto"] || "" : "";
+      document.getElementById("fDestDataIni").value = "";
+      document.getElementById("fDestDataFim").value = "";
+      document.getElementById("fDestRef").value = d && d["Tipo"] === "Produto" ? d["Ref"] || "" : "";
+      document.getElementById("fDestRefSelecionado").textContent = d && d["Tipo"] === "Produto" && d["Ref"] ? "Selecionado: " + _destNomeProduto(d["Ref"]) : "";
+      document.getElementById("fDestRefBusca").value = "";
+      document.getElementById("fDestRefResultados").innerHTML = "";
+      document.getElementById("fDestRefVideo").value = d && d["Tipo"] === "Video" ? d["Ref"] || "" : "";
+      _destTipoChanged();
+      document.getElementById("destaqueFormSection").style.display = "block";
+    }
+    function closeDestaqueForm() {
+      document.getElementById("destaqueFormSection").style.display = "none";
+    }
+    async function salvarDestaqueAdmin() {
+      const tipo = document.getElementById("fDestTipo").value;
+      const ref = tipo === "Video" ? document.getElementById("fDestRefVideo").value.trim() : document.getElementById("fDestRef").value.trim();
+      if (tipo !== "Promo" && !ref) { toast(tipo === "Produto" ? "Selecione um produto" : "Informe o link do vídeo", "err"); return; }
+      const btn = document.getElementById("saveDestaqueBtn");
+      btn.disabled = true; btn.textContent = "Salvando...";
+      try {
+        const res = await apiGet("salvarDestaque", {
+          id: document.getElementById("fDestId").value,
+          tipo,
+          ref,
+          texto: document.getElementById("fDestTexto").value.trim(),
+          dataInicio: document.getElementById("fDestDataIni").value,
+          dataFim: document.getElementById("fDestDataFim").value,
+          ativo: document.getElementById("fDestAtivo").value
+        });
+        if (res.ok) { toast("Destaque salvo ✅"); closeDestaqueForm(); await loadDestaques(); }
+        else toast(res.error || "Erro", "err");
+      } catch(e) { toast("Erro de conexão", "err"); }
+      btn.disabled = false; btn.textContent = "💾 Salvar";
+    }
+    function deletarDestaqueAdmin(id) {
+      toastConfirm("Excluir este destaque?", "🗑️ Excluir", "Cancelar", async () => {
+        try {
+          const res = await apiGet("deletarDestaque", { id });
+          if (res.ok) { toast("Destaque excluído"); await loadDestaques(); }
+          else toast(res.error || "Erro", "err");
+        } catch(e) { toast("Erro de conexão", "err"); }
+      }, () => {});
+    }
+    document.getElementById("destaquesList").addEventListener("click", e => {
+      const editBtn = e.target.closest("[data-dest-edit]");
+      const delBtn = e.target.closest("[data-dest-del]");
+      if (editBtn) { openDestaqueForm(editBtn.dataset.destEdit); return; }
+      if (delBtn) { deletarDestaqueAdmin(delBtn.dataset.destDel); return; }
     });
 
     // OPERADORES
