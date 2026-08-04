@@ -3604,6 +3604,19 @@
       <div id="analyticsContent">
         <div class="empty" style="margin-top:40px">Acesse esta aba para carregar as métricas.</div>
       </div>
+
+      <!-- N13: lucro por produto/categoria -->
+      <div style="margin-top:20px;background:var(--d2);border-radius:14px;padding:16px;border:1px solid var(--border)">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+          <div style="font-family:var(--H);font-weight:800;font-size:15px">💰 Lucro por Produto/Categoria</div>
+          <div style="display:flex;gap:4px;background:var(--d3);border-radius:8px;padding:2px">
+            <button class="lucro-tab on" data-t="categorias" onclick="_lucroSetTab('categorias',this)" style="border:none;background:var(--g);color:#fff;font-size:11px;padding:5px 10px;border-radius:6px;cursor:pointer">Categorias</button>
+            <button class="lucro-tab" data-t="produtos" onclick="_lucroSetTab('produtos',this)" style="border:none;background:none;color:var(--muted);font-size:11px;padding:5px 10px;border-radius:6px;cursor:pointer">Produtos</button>
+          </div>
+        </div>
+        <div style="font-size:11px;color:var(--muted);margin-bottom:10px">Baseado no histórico de pedidos (exclui cancelados) × custo cadastrado em cada produto. ⚠️ = produto sem custo cadastrado, margem real pode ser menor</div>
+        <div id="lucroContent"><div class="empty">Acesse esta aba para carregar.</div></div>
+      </div>
     </div>
 
     <!-- CUPONS -->
@@ -9914,8 +9927,46 @@
       }
     }
 
+    // N13
+    let _lucroData = null, _lucroTab = "categorias";
+    function _lucroFmtLinha(x, nomeKey) {
+      const cor = x.margem >= 30 ? "var(--g)" : x.margem >= 10 ? "var(--o)" : "var(--r)";
+      return `<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border)">
+        <div style="min-width:0;flex:1">
+          <div style="font-size:12px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${x.semCusto ? "⚠️ " : ""}${x[nomeKey]}</div>
+          <div style="font-size:10px;color:var(--muted);margin-top:1px">${x.qtd} un. · receita ${fmt(x.receita)}</div>
+        </div>
+        <div style="text-align:right;flex-shrink:0;margin-left:10px">
+          <div style="font-size:13px;font-weight:800;color:${cor}">${fmt(x.lucro)}</div>
+          <div style="font-size:10px;color:${cor}">${x.margem}% margem</div>
+        </div>
+      </div>`;
+    }
+    function _lucroRender() {
+      const el = document.getElementById("lucroContent");
+      if (!el || !_lucroData) return;
+      const lista = _lucroTab === "categorias" ? _lucroData.categorias : _lucroData.produtos;
+      const nomeKey = _lucroTab === "categorias" ? "categoria" : "nome";
+      if (!lista || !lista.length) { el.innerHTML = `<div class="empty">Sem dados de pedidos ainda.</div>`; return; }
+      el.innerHTML = lista.slice(0, 15).map(x => _lucroFmtLinha(x, nomeKey)).join("");
+    }
+    function _lucroSetTab(tab, btn) {
+      _lucroTab = tab;
+      document.querySelectorAll(".lucro-tab").forEach(b => { b.classList.remove("on"); b.style.background = "none"; b.style.color = "var(--muted)"; });
+      btn.classList.add("on"); btn.style.background = "var(--g)"; btn.style.color = "#fff";
+      _lucroRender();
+    }
+    async function loadLucroPorProduto() {
+      const el = document.getElementById("lucroContent");
+      if (el) el.innerHTML = `<div class="loading"><div class="spin"></div>Calculando...</div>`;
+      try {
+        _lucroData = await apiGet("getLucroPorProduto");
+        _lucroRender();
+      } catch (e) { if (el) el.innerHTML = `<div class="empty" style="color:var(--r)">Erro ao calcular.</div>`; }
+    }
     async function loadAnalytics(periodo) {
       analyticsFilter = periodo || analyticsFilter;
+      if (!_lucroData) loadLucroPorProduto();
       document.querySelectorAll(".an-filter-btn").forEach(b => b.classList.toggle("on", b.dataset.p === analyticsFilter));
       const el = document.getElementById("analyticsContent");
       el.innerHTML = `<div class="loading"><div class="spin"></div>Carregando métricas...</div>`;
