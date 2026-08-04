@@ -3305,10 +3305,14 @@
         </div>
         <!-- Modo Estoque -->
         <div id="docEstoqueRow">
-          <div style="display:flex;gap:8px;margin-bottom:10px;align-items:center">
-            <select class="fi" id="docProdSel" style="flex:1;margin-bottom:0"></select>
-            <input class="fi" id="docProdQty" type="number" value="1" min="1" style="width:64px;margin-bottom:0;text-align:center">
-            <button class="addbtn" onclick="addDocItem()" style="white-space:nowrap">+ Add</button>
+          <div style="position:relative;margin-bottom:10px">
+            <div style="display:flex;gap:8px;align-items:center">
+              <input class="fi" id="docProdSearch" placeholder="🔍 Buscar produto..." style="flex:1;margin-bottom:0" oninput="_docBuscaProduto(this.value)" autocomplete="off">
+              <input class="fi" id="docProdQty" type="number" value="1" min="1" style="width:64px;margin-bottom:0;text-align:center">
+              <button class="addbtn" onclick="addDocItem()" style="white-space:nowrap">+ Add</button>
+            </div>
+            <input type="hidden" id="docProdSelId">
+            <div id="docProdResults" style="display:none;position:absolute;top:100%;left:0;right:70px;z-index:50;background:var(--d2);border:1px solid var(--border);border-radius:10px;margin-top:4px;max-height:220px;overflow-y:auto;box-shadow:0 8px 24px rgba(0,0,0,.4)"></div>
           </div>
         </div>
         <div id="docItemsList">
@@ -3734,11 +3738,27 @@
           <input class="fi" id="fDestRefBusca" placeholder="Buscar produto por nome..." oninput="_destBuscaProduto(this.value)">
           <div id="fDestRefResultados" style="max-height:160px;overflow:auto;margin-top:4px"></div>
           <input type="hidden" id="fDestRef">
+          <input type="hidden" id="fDestImagemIdx" value="0">
           <div id="fDestRefSelecionado" style="font-size:12px;color:var(--c);margin-top:4px"></div>
+          <div id="fDestImgPicker" style="display:none;margin-top:8px">
+            <div style="font-size:11px;color:var(--muted);margin-bottom:6px">Escolha qual foto do produto usar no destaque:</div>
+            <div id="fDestImgOptions" style="display:flex;gap:8px"></div>
+          </div>
         </div>
         <div class="fg" id="fDestRefVideoWrap" style="display:none">
           <label class="fl">Link do vídeo (YouTube)</label>
           <input class="fi" id="fDestRefVideo" placeholder="https://www.youtube.com/watch?v=...">
+        </div>
+        <div class="fg" id="fDestUploadWrap">
+          <label class="fl">Ou envie uma imagem/vídeo personalizado <span style="color:var(--muted);font-weight:400">(substitui a foto do produto / vira o banner da promo)</span></label>
+          <div style="display:flex;align-items:center;gap:8px">
+            <label class="addbtn" style="cursor:pointer;font-size:12px;padding:6px 12px;display:inline-block">📤 Enviar arquivo
+              <input type="file" id="fDestUploadInput" accept="image/*,video/*" style="display:none" onchange="_destUpload(this)">
+            </label>
+            <span id="fDestUploadStatus" style="font-size:11px;color:var(--muted)"></span>
+          </div>
+          <input type="hidden" id="fDestMediaCustom">
+          <div id="fDestUploadPreview" style="margin-top:8px"></div>
         </div>
         <div class="fg"><label class="fl">Texto (título/legenda exibida)</label><input class="fi" id="fDestTexto" placeholder="Ex: Confira o lançamento da semana!"></div>
         <div class="frow">
@@ -8693,11 +8713,6 @@
     let docPagSel = "PIX";
 
     function initDoc() {
-      // Popula selector de produtos
-      const sel = document.getElementById("docProdSel");
-      sel.innerHTML = `<option value="">Selecione um produto...</option>` +
-        allProds.map(p => `<option value="${p["ID"]}">${p["Nome do Produto"] || "—"} — ${fmt(p["Preço (R$)"])}</option>`).join("");
-
       // Popula formas de pagamento da Config
       const formas = String(cfg.FORMAS_PAGAMENTO || "PIX,Cartão,Parcelado GJ,Dinheiro,Boleto").split(",").map(s => s.trim()).filter(Boolean);
       const pagEl = document.getElementById("docPagOpts");
@@ -8758,11 +8773,32 @@
       docPagSel = pag;
     }
 
+    // Busca digitável de produto pro Docs (antes era <select> com todos os produtos, difícil de achar)
+    function _docBuscaProduto(q) {
+      const el = document.getElementById("docProdResults");
+      if (!el) return;
+      document.getElementById("docProdSelId").value = "";
+      q = q.trim().toLowerCase();
+      if (!q) { el.style.display = "none"; return; }
+      const achados = allProds.filter(p => p["Status"] !== "Inativo" && (p["Nome do Produto"] || "").toLowerCase().includes(q)).slice(0, 8);
+      if (!achados.length) {
+        el.innerHTML = `<div style="padding:8px 12px;font-size:12px;color:var(--muted)">Nenhum produto encontrado</div>`;
+        el.style.display = "block";
+        return;
+      }
+      el.innerHTML = achados.map(p => `<div style="padding:8px 12px;font-size:13px;cursor:pointer;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;gap:8px;align-items:center" onmouseover="this.style.background='var(--d3)'" onmouseout="this.style.background=''" onclick="_docSelecionaProduto('${p["ID"]}')"><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${p["Nome do Produto"] || "—"}</span><span style="color:var(--g);flex-shrink:0;font-weight:700">${fmt(p["Preço (R$)"])}</span></div>`).join("");
+      el.style.display = "block";
+    }
+    function _docSelecionaProduto(id) {
+      const p = allProds.find(x => String(x["ID"]) === String(id));
+      document.getElementById("docProdSelId").value = id;
+      document.getElementById("docProdSearch").value = p ? (p["Nome do Produto"] || "") : "";
+      document.getElementById("docProdResults").style.display = "none";
+    }
     function addDocItem() {
-      const sel = document.getElementById("docProdSel");
+      const id = document.getElementById("docProdSelId").value;
       const qty = Math.max(1, parseInt(document.getElementById("docProdQty").value) || 1);
-      const id = sel.value;
-      if (!id) { toast("Selecione um produto", "err"); return; }
+      if (!id) { toast("Busque e selecione um produto", "err"); return; }
       const prod = allProds.find(p => String(p["ID"]) === String(id));
       if (!prod) return;
       const preco = Number(prod["Preço Promo (R$)"] || 0) > 0 && Number(prod["Preço Promo (R$)"]) < Number(prod["Preço (R$)"])
@@ -8773,7 +8809,9 @@
       else docItems.push({ id, nome: prod["Nome do Produto"] || "—", img: prod["Imagem 1 (URL)"] || "", preco, qty });
       renderDocItems();
       updateDocTotal();
-      sel.value = "";
+      document.getElementById("docProdSelId").value = "";
+      document.getElementById("docProdSearch").value = "";
+      document.getElementById("docProdResults").style.display = "none";
       document.getElementById("docProdQty").value = 1;
     }
 
@@ -10551,6 +10589,45 @@
       const tipo = document.getElementById("fDestTipo").value;
       document.getElementById("fDestRefProdutoWrap").style.display = tipo === "Produto" ? "block" : "none";
       document.getElementById("fDestRefVideoWrap").style.display = tipo === "Video" ? "block" : "none";
+      document.getElementById("fDestUploadWrap").style.display = tipo === "Video" ? "none" : "block";
+    }
+    function _destRenderImgPicker(prodId, selectedIdx) {
+      const p = allProds.find(pp => String(pp["ID"]) === String(prodId));
+      const wrap = document.getElementById("fDestImgPicker");
+      const opts = document.getElementById("fDestImgOptions");
+      if (!p) { wrap.style.display = "none"; return; }
+      const imgs = [p["Imagem 1 (URL)"], p["Imagem 2 (URL)"], p["Imagem 3 (URL)"]].filter(Boolean);
+      document.getElementById("fDestImagemIdx").value = selectedIdx || 0;
+      if (imgs.length <= 1) { wrap.style.display = "none"; return; }
+      opts.innerHTML = imgs.map((u, i) => `<img src="${u}" onclick="_destPickImg(${i})" data-idx="${i}" style="width:56px;height:56px;object-fit:cover;border-radius:8px;cursor:pointer;border:2px solid ${i === (selectedIdx || 0) ? "var(--g)" : "transparent"}">`).join("");
+      wrap.style.display = "block";
+    }
+    function _destPickImg(idx) {
+      document.getElementById("fDestImagemIdx").value = idx;
+      document.querySelectorAll("#fDestImgOptions img").forEach(img => {
+        img.style.borderColor = Number(img.dataset.idx) === idx ? "var(--g)" : "transparent";
+      });
+    }
+    async function _destUpload(input) {
+      const file = input.files[0];
+      if (!file) return;
+      const statusEl = document.getElementById("fDestUploadStatus");
+      statusEl.textContent = "⏳ Enviando...";
+      try {
+        const url = await uploadCloud(file);
+        document.getElementById("fDestMediaCustom").value = url;
+        statusEl.innerHTML = `✅ Enviado <button onclick="_destRemoverUpload()" style="background:none;border:none;color:var(--r);cursor:pointer;font-size:11px;text-decoration:underline">remover</button>`;
+        const isVideo = file.type.startsWith("video");
+        document.getElementById("fDestUploadPreview").innerHTML = isVideo
+          ? `<video src="${url}" controls style="max-width:160px;max-height:120px;border-radius:8px"></video>`
+          : `<img src="${url}" style="max-width:160px;max-height:120px;border-radius:8px;object-fit:cover">`;
+      } catch (e) { statusEl.textContent = "❌ Erro no upload"; }
+      input.value = "";
+    }
+    function _destRemoverUpload() {
+      document.getElementById("fDestMediaCustom").value = "";
+      document.getElementById("fDestUploadPreview").innerHTML = "";
+      document.getElementById("fDestUploadStatus").textContent = "";
     }
     function _destBuscaProduto(q) {
       const el = document.getElementById("fDestRefResultados");
@@ -10565,6 +10642,7 @@
       document.getElementById("fDestRefSelecionado").textContent = "Selecionado: " + _destNomeProduto(id);
       document.getElementById("fDestRefResultados").innerHTML = "";
       document.getElementById("fDestRefBusca").value = "";
+      _destRenderImgPicker(id, 0);
     }
     function openDestaqueForm(id) {
       const d = id ? allDestaques.find(x => String(x["ID"]) === String(id)) : null;
@@ -10580,6 +10658,14 @@
       document.getElementById("fDestRefBusca").value = "";
       document.getElementById("fDestRefResultados").innerHTML = "";
       document.getElementById("fDestRefVideo").value = d && d["Tipo"] === "Video" ? d["Ref"] || "" : "";
+      document.getElementById("fDestImgPicker").style.display = "none";
+      if (d && d["Tipo"] === "Produto" && d["Ref"]) _destRenderImgPicker(d["Ref"], Number(d["ImagemIdx"] || 0));
+      else document.getElementById("fDestImagemIdx").value = 0;
+      document.getElementById("fDestMediaCustom").value = d ? d["MediaCustom"] || "" : "";
+      document.getElementById("fDestUploadStatus").innerHTML = d && d["MediaCustom"] ? `✅ Enviado <button onclick="_destRemoverUpload()" style="background:none;border:none;color:var(--r);cursor:pointer;font-size:11px;text-decoration:underline">remover</button>` : "";
+      document.getElementById("fDestUploadPreview").innerHTML = d && d["MediaCustom"]
+        ? (String(d["MediaCustom"]).match(/\.(mp4|webm|mov)/i) ? `<video src="${d["MediaCustom"]}" controls style="max-width:160px;max-height:120px;border-radius:8px"></video>` : `<img src="${d["MediaCustom"]}" style="max-width:160px;max-height:120px;border-radius:8px;object-fit:cover">`)
+        : "";
       _destTipoChanged();
       document.getElementById("destaqueFormSection").style.display = "block";
     }
@@ -10600,7 +10686,9 @@
           texto: document.getElementById("fDestTexto").value.trim(),
           dataInicio: document.getElementById("fDestDataIni").value,
           dataFim: document.getElementById("fDestDataFim").value,
-          ativo: document.getElementById("fDestAtivo").value
+          ativo: document.getElementById("fDestAtivo").value,
+          imagemIdx: document.getElementById("fDestImagemIdx").value,
+          mediaCustom: document.getElementById("fDestMediaCustom").value
         });
         if (res.ok) { toast("Destaque salvo ✅"); closeDestaqueForm(); await loadDestaques(); }
         else toast(res.error || "Erro", "err");
