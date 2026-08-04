@@ -3764,8 +3764,12 @@
     <!-- TRIGGERS -->
     <div style="background:var(--d2);border-radius:14px;padding:16px;border:1px solid var(--border);margin-bottom:14px">
       <div style="font-family:var(--H);font-weight:700;font-size:13px;margin-bottom:4px">⚡ Ativar Triggers Automáticos</div>
-      <div style="font-size:12px;color:var(--muted);margin-bottom:12px;line-height:1.5">Registra no Google Apps Script os 4 gatilhos automáticos: dashboard (a cada 5 min), morning digest (7h), alerta SLA (a cada 1h) e aviso de vencimento D-1 (8h). Execute <b>1 vez</b> após implantar o script.</div>
-      <button class="savebtn" onclick="_autoSetupTriggers()">🔧 Ativar Todos os Triggers</button>
+      <div style="font-size:12px;color:var(--muted);margin-bottom:12px;line-height:1.5">Registra no Google Apps Script os 5 gatilhos automáticos: dashboard, morning digest (7h), alerta SLA (1h), vencimento D-1 (9h) e garantia (10h). Execute <b>1 vez</b> após implantar o script — ou de novo se o status abaixo mostrar triggers faltando.</div>
+      <div id="triggersStatusBox" style="font-size:12px;margin-bottom:12px">Verificando status...</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="savebtn" onclick="_autoSetupTriggers()">🔧 Ativar Todos os Triggers</button>
+        <button class="savebtn" style="background:var(--d3)" onclick="_loadTriggersStatus()">🔄 Verificar Status</button>
+      </div>
     </div>
 
     <!-- TESTES -->
@@ -4638,6 +4642,7 @@
           if (inp) inp.value = metaVal;
         }
       } catch(e) {}
+      _loadTriggersStatus();
     }
     let _savingMetaAuto = false;
     async function salvarMetaAuto() {
@@ -10077,6 +10082,20 @@
     // ═══════════════════════════════════════════════════════════════
     // AUTOMAÇÕES
     // ═══════════════════════════════════════════════════════════════
+    async function _loadTriggersStatus() {
+      const box = document.getElementById("triggersStatusBox");
+      if (!box) return;
+      box.textContent = "Verificando status...";
+      try {
+        const r = await apiGet("getTriggersStatus");
+        if (!r.ok) { box.innerHTML = `<span style="color:var(--r)">Erro ao verificar</span>`; return; }
+        const nomes = { atualizarDashboard: "Dashboard", enviarMorningDigest: "Morning Digest", verificarSLA: "Alerta SLA", alertaVencimentoAmanha: "Cobranças D-1", verificarGarantia: "Garantia" };
+        const cor = r.total === r.esperado ? "var(--g)" : "var(--o)";
+        box.innerHTML = `<div style="color:${cor};font-weight:700;margin-bottom:6px">${r.total}/${r.esperado} triggers ativos</div>` +
+          r.triggers.map(t => `<div style="display:flex;align-items:center;gap:6px;padding:2px 0"><span>${t.ativo ? "✅" : "❌"}</span><span style="color:${t.ativo ? "var(--fg)" : "var(--r)"}">${nomes[t.funcao] || t.funcao}</span></div>`).join("");
+      } catch(e) { box.innerHTML = `<span style="color:var(--r)">Erro de conexão</span>`; }
+    }
+
     async function _autoSetupTriggers() {
       const btn = event.target;
       btn.disabled = true; btn.textContent = "⏳ Configurando...";
@@ -10086,6 +10105,7 @@
         else toast(r.error || "Erro", "err");
       } catch(e) { toast("Erro de conexão", "err"); }
       btn.disabled = false; btn.textContent = "🔧 Ativar Todos os Triggers";
+      _loadTriggersStatus();
     }
 
     async function _autoTestar(action) {
@@ -10093,7 +10113,7 @@
       btn.disabled = true; btn.textContent = "⏳";
       try {
         const r = await apiGet(action);
-        if (r.ok) toast("✅ " + (r.msg || "Enviado!"), "ok");
+        if (r.ok) toast((r.msg || "").includes("Nenhum") || (r.msg||"").includes("configurado") || (r.msg||"").includes("Fora do horário") ? "ℹ️ " + r.msg : "✅ " + (r.msg || "Enviado!"), "ok");
         else toast(r.error || "Erro", "err");
       } catch(e) { toast("Erro de conexão", "err"); }
       btn.disabled = false; btn.textContent = "Verificar agora";
