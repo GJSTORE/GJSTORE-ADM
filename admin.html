@@ -8310,16 +8310,20 @@
       } catch (e) { }
     }
 
+    // X9: além de online/offline, mede latência — GAS "lento" (frio, cold start) é diferente de caído
     function updateOnlineStatus() {
       if (_onlineCheckInterval) clearInterval(_onlineCheckInterval);
       const dot = document.getElementById("onlineDot");
       const check = async () => {
         if (!dot) return;
+        const t0 = Date.now();
         try {
           const r = await apiGet("ping").catch(() => null);
+          const ms = Date.now() - t0;
           const online = r && (r.ok || r.status === "ok" || r.pong);
-          dot.style.background = online ? "#00e676" : "#f44336";
-          dot.title = online ? "GAS Online" : "GAS Offline";
+          if (!online) { dot.style.background = "#f44336"; dot.title = "GAS Offline"; }
+          else if (ms > 3000) { dot.style.background = "#ffb74d"; dot.title = "GAS lento (" + ms + "ms)"; }
+          else { dot.style.background = "#00e676"; dot.title = "GAS Online (" + ms + "ms)"; }
         } catch {
           dot.style.background = "#f44336";
           dot.title = "GAS Offline";
