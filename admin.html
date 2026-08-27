@@ -4522,6 +4522,8 @@
     const _cfgVal = v => (typeof v !== "undefined" && v && !String(v).includes("COLE")) ? v : "";
     const CLOUDINARY_CLOUD  = _cfgVal(typeof CFG_CLOUDINARY_CLOUD  !== "undefined" ? CFG_CLOUDINARY_CLOUD  : "eslbyl14");
     const CLOUDINARY_PRESET = _cfgVal(typeof CFG_CLOUDINARY_PRESET !== "undefined" ? CFG_CLOUDINARY_PRESET : "gjstore2");
+    const OPENINARY_URL = "https://servidor-1.tailc513c6.ts.net:3100";
+    const OPENINARY_KEY = "FeVbDJnaPgaGrtLuNUGcFPgLDFRudXIoDUVtHSItxSPMYTKyfiYHZCpsSOvAZcXz";
     const SITE_URL = _cfgVal(typeof CFG_SITE_URL !== "undefined" ? CFG_SITE_URL : "");
     function _shareBase() {
       if (SITE_URL) return SITE_URL.replace(/\/?$/, "/");
@@ -5692,6 +5694,19 @@
     function closeM() { document.getElementById("moverlay").classList.add("hidden"); document.body.style.overflow = ""; }
 
     async function uploadCloud(file) {
+      if (OPENINARY_URL && OPENINARY_KEY) {
+        const fd = new FormData();
+        fd.append("files", file);
+        fd.append("folder", "gjstore/admin");
+        const r = await fetch(`${OPENINARY_URL}/api/upload`, {
+          method: "POST",
+          headers: { "Authorization": `Bearer ${OPENINARY_KEY}` },
+          body: fd
+        });
+        const data = await r.json();
+        if (!r.ok || !data.success) throw new Error(data.error || "Openinary erro " + r.status);
+        return `${OPENINARY_URL}${data.files[0].url}`;
+      }
       if (!CLOUDINARY_CLOUD || !CLOUDINARY_PRESET) {
         return new Promise(res => { const r = new FileReader(); r.onload = e => res(e.target.result); r.readAsDataURL(file); });
       }
@@ -10906,15 +10921,30 @@
       const prev = document.getElementById("opFotoPreview");
       prev.innerHTML = "⏳";
       try {
-        const fd = new FormData();
-        fd.append("file", file);
-        fd.append("upload_preset", CLOUDINARY_PRESET);
-        const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD}/image/upload`, { method: "POST", body: fd });
-        const data = await res.json();
-        if (data.secure_url) {
-          document.getElementById("fOpFotoUrl").value = data.secure_url;
-          prev.innerHTML = `<img src="${data.secure_url}" style="width:100%;height:100%;object-fit:cover;border-radius:50%">`;
-        } else toast("Erro no upload da foto", "err");
+        let url;
+        if (OPENINARY_URL && OPENINARY_KEY) {
+          const fd = new FormData();
+          fd.append("files", file);
+          fd.append("folder", "gjstore/admin/operadores");
+          const res = await fetch(`${OPENINARY_URL}/api/upload`, {
+            method: "POST",
+            headers: { "Authorization": `Bearer ${OPENINARY_KEY}` },
+            body: fd
+          });
+          const data = await res.json();
+          if (!data.success) throw new Error(data.error || "Openinary erro");
+          url = `${OPENINARY_URL}${data.files[0].url}`;
+        } else {
+          const fd = new FormData();
+          fd.append("file", file);
+          fd.append("upload_preset", CLOUDINARY_PRESET);
+          const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD}/image/upload`, { method: "POST", body: fd });
+          const data = await res.json();
+          if (!data.secure_url) throw new Error("Cloudinary erro");
+          url = data.secure_url;
+        }
+        document.getElementById("fOpFotoUrl").value = url;
+        prev.innerHTML = `<img src="${url}" style="width:100%;height:100%;object-fit:cover;border-radius:50%">`;
       } catch(e) { toast("Erro no upload", "err"); prev.innerHTML = "👤"; }
     }
 
