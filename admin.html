@@ -4522,7 +4522,9 @@
     const _cfgVal = v => (typeof v !== "undefined" && v && !String(v).includes("COLE")) ? v : "";
     const CLOUDINARY_CLOUD  = _cfgVal(typeof CFG_CLOUDINARY_CLOUD  !== "undefined" ? CFG_CLOUDINARY_CLOUD  : "eslbyl14");
     const CLOUDINARY_PRESET = _cfgVal(typeof CFG_CLOUDINARY_PRESET !== "undefined" ? CFG_CLOUDINARY_PRESET : "gjstore2");
-    const OPENINARY_URL = "https://servidor-1.tailc513c6.ts.net:3100";
+    // 2026-08-28: porta 3100 nunca foi alcançável por Funnel público de verdade (só 443/8443/10000
+    // são autorizados) — migrado pra /img sob a 8443, mesma porta do Nuvário (path-based via tailscale serve)
+    const OPENINARY_URL = "https://servidor-1.tailc513c6.ts.net:8443/img";
     const OPENINARY_KEY = "FeVbDJnaPgaGrtLuNUGcFPgLDFRudXIoDUVtHSItxSPMYTKyfiYHZCpsSOvAZcXz";
     const SITE_URL = _cfgVal(typeof CFG_SITE_URL !== "undefined" ? CFG_SITE_URL : "");
     function _shareBase() {
