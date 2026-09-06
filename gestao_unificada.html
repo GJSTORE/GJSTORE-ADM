@@ -2149,19 +2149,54 @@ async function toggleAudit() {
 }
 
 // ── RECIBO ────────────────────────────────────────────────────────
+// Otimiza URL de imagem (Cloudinary/Openinary) — mesma lógica do index.html, replicada aqui
+// porque este arquivo nunca teve cldOpt() (recibo usava URL crua/full-size direto).
+function cldOpt(url, w) {
+  if (!url) return url;
+  if (url.includes("res.cloudinary.com") && url.includes("/upload/")) {
+    const params = "f_auto,q_auto" + (w ? ",w_" + w : "");
+    return url.replace("/upload/", "/upload/" + params + "/");
+  }
+  if (url.includes("/t/") && !url.includes("/t/f_")) {
+    const params = "f_auto,q_auto" + (w ? ",w_" + w : "");
+    return url.replace("/t/", "/t/" + params + "/");
+  }
+  return url;
+}
+// Catálogo completo (inclui inativo) dedicado ao recibo — loadAll() já preenche allProds sem
+// verTodos no boot da tela (só ativos), então o guard "if (!allProds.length)" abaixo nunca
+// disparava de verdade e pedido antigo com produto descontinuado ficava sem foto.
+let _rcCatalogFull = null;
+async function _rcGetCatalog() {
+  if (_rcCatalogFull) return _rcCatalogFull;
+  try {
+    const r = await apiGet("getProdutos", { verTodos: "1" });
+    _rcCatalogFull = r.produtos || allProds;
+  } catch (e) { _rcCatalogFull = allProds; }
+  return _rcCatalogFull;
+}
+// Espera as <img> do card carregarem (ou falharem) antes do html2canvas capturar — sem isso
+// o recibo exportado saía sem foto quando a imagem ainda não tinha terminado de baixar.
+function _waitImgsLoaded(el, timeoutMs) {
+  const imgs = Array.from(el.querySelectorAll("img"));
+  if (!imgs.length) return Promise.resolve();
+  return Promise.race([
+    Promise.all(imgs.map(img => img.complete ? Promise.resolve() : new Promise(res => { img.onload = img.onerror = res; }))),
+    new Promise(res => setTimeout(res, timeoutMs || 4000))
+  ]);
+}
 function _rcProdImg(nome) {
-  if (!allProds.length || !nome) return "";
+  const prods = (_rcCatalogFull && _rcCatalogFull.length) ? _rcCatalogFull : allProds;
+  if (!prods.length || !nome) return "";
   const n = String(nome).toLowerCase().trim();
-  const f = allProds.find(p => String(p["Nome do Produto"] || p["Nome"] || "").toLowerCase().trim() === n)
-    || allProds.find(p => { const pn = String(p["Nome do Produto"] || p["Nome"] || "").toLowerCase().trim(); return pn && (pn.includes(n) || n.includes(pn)); });
-  return f ? String(f["Imagem 1 (URL)"] || f["Imagem URL"] || "").trim() : "";
+  const f = prods.find(p => String(p["Nome do Produto"] || p["Nome"] || "").toLowerCase().trim() === n)
+    || prods.find(p => { const pn = String(p["Nome do Produto"] || p["Nome"] || "").toLowerCase().trim(); return pn && (pn.includes(n) || n.includes(pn)); });
+  return f ? cldOpt(String(f["Imagem 1 (URL)"] || f["Imagem URL"] || "").trim(), 150) : "";
 }
 
 async function showRecibo(pedId) {
-  // Carrega produtos para thumbnail se ainda não carregados
-  if (!allProds.length) {
-    try { const r = await apiGet("getProdutos"); allProds = r.produtos || []; } catch {}
-  }
+  // Catálogo completo (inclui inativo) — nunca confiar só no allProds do boot (só ativos)
+  await _rcGetCatalog();
   try {
   const p = allPeds.find(x => String(x["ID Pedido"]) === String(pedId));
   if (!p) { toast("Pedido #" + pedId + " não encontrado no cache. Faça sync.", "err"); return; }
@@ -2420,7 +2455,9 @@ async function gerarImagemRecibo() {
   const wppTextMatch = wppHref ? wppHref.match(/[?&]text=([^&]*)/) : null;
   const wppText = wppTextMatch ? decodeURIComponent(wppTextMatch[1]) : "";
   try {
-    const canvas = await html2canvas(document.getElementById("rcCard"), { backgroundColor: "#04090f", scale: 2, useCORS: true });
+    const rcCardEl = document.getElementById("rcCard");
+    await _waitImgsLoaded(rcCardEl);
+    const canvas = await html2canvas(rcCardEl, { backgroundColor: "#04090f", scale: 2, useCORS: true });
     canvas.toBlob(function(blob) {
       const file = new File([blob], "recibo-gj.png", { type: "image/png" });
       if (navigator.canShare && navigator.canShare({ files: [file] })) {
