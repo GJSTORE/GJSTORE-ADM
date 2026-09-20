@@ -3113,11 +3113,6 @@
       </div>
       <!-- Alertas -->
       <div id="homeAlertas"></div>
-      <!-- Cobranças Pendentes (E4.2/G8/W2/W3) -->
-      <div class="dsec">
-        <div class="dtitle">🔔 Cobranças — quem esqueci / atrasado</div>
-        <div id="homeCobrancas"><div class="loading"><div class="spin"></div>Carregando...</div></div>
-      </div>
       <!-- Top Produtos Vendidos -->
       <div class="dsec">
         <div class="dtitle">🏆 Top Produtos Vendidos</div>
@@ -3458,6 +3453,9 @@
       .cb-ok:disabled { opacity: .45; }
       .cb-ok-ico { font-size: 44px; text-align: center; margin-bottom: 4px; }
       .cb-menu { display: flex; flex-direction: column; gap: 8px; }
+      .cb-pixbox { display: flex; justify-content: space-between; align-items: center; background: var(--d3); border: 1px solid var(--border); border-radius: 12px; padding: 10px 14px; margin-bottom: 8px; }
+      .cb-pixl { font-size: 11px; color: var(--muted); }
+      .cb-pixn { font-family: var(--H); font-size: 17px; font-weight: 800; }
     </style>
     <div class="page" id="page-cobrar">
       <div class="cb-head">
@@ -5095,13 +5093,11 @@
       renderGreeting();
       updateOnlineStatus();
       try {
-        const [pr, pp, rp, cb] = await Promise.all([
+        const [pr, pp, rp] = await Promise.all([
           apiGet("getProdutos"),
           apiGet("getPedidos"),
-          apiGet("getResumoPeriodo", { periodo: homeFilter }).catch(() => null),
-          apiPost("getCobrancasV2", { token: TOKEN }).catch(() => null)
+          apiGet("getResumoPeriodo", { periodo: homeFilter }).catch(() => null)
         ]);
-        renderHomeCobr(cb);
         const prods = (pr && Array.isArray(pr.produtos)) ? pr.produtos : [];
         const peds  = (pp && Array.isArray(pp.pedidos))  ? pp.pedidos  : [];
         allProds = prods; allPeds = peds; _allProdsFull = false; // home só traz Ativos — força reload com verTodos ao abrir Produtos
@@ -7158,7 +7154,7 @@
         : `<div style="font-size:12px;color:#8899aa;padding:6px 0">Nenhum pagamento registrado</div>`;
 
       // WPP message
-      const wppMsgRaw = [
+      const wppMsgBase = [
         `🧾 *Recibo — GJ Store*`,
         ``,
         `👤 *${nome}*${tel ? `  📱 ${tel}` : ""}`,
@@ -7179,6 +7175,8 @@
         ``,
         `_${_fraseAgradecimento(quitado)}_`
       ].filter(l => l !== null && l !== undefined).join("\n");
+      // texto extra (ex.: agradecimento vindo da aba Cobrar) vai antes do recibo detalhado
+      const wppMsgRaw = (typeof window._rcTextoExtra === "string" && window._rcTextoExtra) ? window._rcTextoExtra + "\n\n———————————\n" + wppMsgBase : wppMsgBase;
       const wppMsg = encodeURIComponent(wppMsgRaw);
 
       const existing = document.getElementById("baixaReceiptModal");
@@ -11656,14 +11654,13 @@
   <!-- ══ COBRAR (2026-09-20) — tela de cobrança: quem cobrar, mensagem pronta + Pix, "Recebi" em 2 toques ══
        Backend: gas/Cobrancas.js (getCobrancasV2 / receberCobranca / adiarCobranca). Pesquisa: mind/PESQUISA-COBRANCA-2026-09-20.md -->
   <script>
-    // Chave Pix do dono (telefone). Nome ≤25 e cidade ≤15 caracteres, sem acento (regra do BR Code).
-    const CB_PIX = { chave: "+5521970363062", nome: "GJ STORE", cidade: "RIO DE JANEIRO", telFmt: "(21) 97036-3062" };
+    // Chave Pix do dono = celular.
+    const CB_PIX = { tel: "21970363062", telFmt: "(21) 97036-3062" };
 
     let cbData = null, cbFilter = "todos", cbCur = null, cbRec = null, cbDeepDone = false, cbLoading = false;
 
     // ── utilidades ─────────────────────────────────────────────────────────
     function cbEsc(s) { return String(s == null ? "" : s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])); }
-    function cbAscii(s, max) { return String(s).normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^A-Za-z0-9 ]/g, "").toUpperCase().slice(0, max); }
     function cbPrimeiroNome(n) { const p = String(n || "").trim().split(/\s+/)[0] || ""; return p ? p[0].toUpperCase() + p.slice(1).toLowerCase() : ""; }
     function cbHojeISO() { const d = new Date(); return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); }
     function cbISOaddDias(n) { const d = new Date(); d.setDate(d.getDate() + n); return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); }
@@ -11678,23 +11675,10 @@
       document.body.appendChild(ta); ta.select(); try { document.execCommand("copy"); ok(); } catch (e) { toast("Não consegui copiar", "err"); } ta.remove();
     }
 
-    // ── Pix copia e cola (BR Code estático com valor) ───────────────────────
-    function cbCrc16(str) {
-      let crc = 0xFFFF;
-      for (let i = 0; i < str.length; i++) {
-        crc ^= str.charCodeAt(i) << 8;
-        for (let b = 0; b < 8; b++) crc = (crc & 0x8000) ? ((crc << 1) ^ 0x1021) & 0xFFFF : (crc << 1) & 0xFFFF;
-      }
-      return crc.toString(16).toUpperCase().padStart(4, "0");
-    }
-    function cbTlv(id, val) { return id + String(val.length).padStart(2, "0") + val; }
-    function cbPix(valor) {
-      const gui = cbTlv("00", "br.gov.bcb.pix") + cbTlv("01", CB_PIX.chave);
-      let p = cbTlv("00", "01") + cbTlv("01", "11") + cbTlv("26", gui) + cbTlv("52", "0000") + cbTlv("53", "986");
-      if (valor > 0) p += cbTlv("54", Number(valor).toFixed(2));
-      p += cbTlv("58", "BR") + cbTlv("59", cbAscii(CB_PIX.nome, 25)) + cbTlv("60", cbAscii(CB_PIX.cidade, 15)) + cbTlv("62", cbTlv("05", "***"));
-      p += "6304";
-      return p + cbCrc16(p);
+    // ── Pix: chave = celular do dono (sem copia e cola; a pessoa copia o número e digita o valor) ──
+    function cbPixValor(v) { return Number(v).toFixed(2).replace(".", ","); }
+    function cbPixTxt(v) {
+      return "💠 *Pix (chave = celular):*\n```" + CB_PIX.tel + "```\n💰 *Valor: " + fmt(v) + "*";
     }
 
     // ── mensagens (tom educado; juros só aparecem quando já há atraso) ──────
@@ -11714,7 +11698,7 @@
       const parc = c.parcelas > 1 ? "parcela " + c.parcela + "/" + c.parcelas + " do seu pedido #" + id : "pagamento do seu pedido #" + id;
       const oParc = (c.parcelas > 1 ? "a " : "o ") + parc, OParc = (c.parcelas > 1 ? "A " : "O ") + parc;
       const quanto = cbQuanto(c);
-      const pix = quanto > 0 ? "\n\n💠 *Pix copia e cola:*\n" + cbPix(quanto) + "\n_(chave Pix = telefone " + CB_PIX.telFmt + ")_" : "";
+      const pix = quanto > 0 ? "\n\n" + cbPixTxt(quanto) : "";
       const jurosLn = c.juros > 0
         ? "\n➕ Juros de atraso (" + fmt(jd) + "/dia × " + c.diasAtraso + "d): " + fmt(c.juros) + "\n✅ *Total hoje: " + fmt(c.valorComJuros) + "*"
         : "";
@@ -11850,13 +11834,15 @@
     function cbSheetCobrar(c) {
       const msg = cbMsg(c);
       cbSheet('<div class="cb-sh-t">💬 Cobrar ' + cbEsc(cbPrimeiroNome(c.nome)) + ' <span class="cb-id">' + cbRotulo(c) + '</span></div>' +
-        '<textarea id="cbMsgTxt" class="fi cb-ta" rows="11">' + cbEsc(msg) + '</textarea>' +
+        '<div class="cb-pixbox"><div><div class="cb-pixl">💠 Pix (celular)</div><div class="cb-pixn">' + CB_PIX.telFmt + '</div></div><div style="text-align:right"><div class="cb-pixl">Valor</div><div class="cb-pixn">' + fmt(cbQuanto(c)) + '</div></div></div>' +
+        '<div class="cb-sh-row"><button class="cb-b" onclick="cbCopiar(CB_PIX.tel,\'Número do Pix copiado ✅\')">📋 Copiar nº do Pix</button>' +
+        '<button class="cb-b" onclick="cbCopiar(cbPixValor(cbQuanto(cbCur)),\'Valor copiado ✅\')">💰 Copiar valor</button></div>' +
+        '<textarea id="cbMsgTxt" class="fi cb-ta" rows="10">' + cbEsc(msg) + '</textarea>' +
         '<div class="cb-sh-row">' +
         '<button class="cb-b cb-b-w cb-big" onclick="cbEnviarWpp()">💬 Abrir WhatsApp</button>' +
-        '<button class="cb-b cb-big" onclick="cbCopiar(document.getElementById(\'cbMsgTxt\').value,\'Mensagem copiada ✅\')">📋 Copiar tudo</button></div>' +
-        '<div class="cb-sh-row"><button class="cb-b" onclick="cbCopiar(cbPix(cbQuanto(cbCur)),\'Pix copia e cola copiado ✅\')">💠 Copiar só o Pix</button>' +
-        '<button class="cb-b cb-b-g" onclick="cbFechar();cbSheetRecebi(cbCur)">✅ Já pagou</button></div>' +
-        (c.telefone ? "" : '<div class="cb-warn">Cliente sem telefone cadastrado — use “Copiar”.</div>'));
+        '<button class="cb-b cb-big" onclick="cbCopiar(document.getElementById(\'cbMsgTxt\').value,\'Mensagem completa copiada ✅\')">📋 Copiar tudo</button></div>' +
+        '<div class="cb-sh-row"><button class="cb-b cb-b-g" style="min-height:46px" onclick="cbFechar();cbSheetRecebi(cbCur)">✅ Já pagou — registrar</button></div>' +
+        (c.telefone ? "" : '<div class="cb-warn">Cliente sem telefone cadastrado — use “Copiar tudo”.</div>'));
     }
     function cbEnviarWpp() { cbAbrirWpp(cbCur.telefone, document.getElementById("cbMsgTxt").value); }
 
@@ -11935,11 +11921,14 @@
         r.quitado ? "🎉 <b>Pedido quitado</b>" : "Saldo restante: <b>" + fmt(r.novoSaldo) + "</b>" + (r.proximaVencimento ? " · próximo vencimento " + r.proximaVencimento : "")
       ].filter(Boolean).join("<br>");
       cbSheet('<div class="cb-ok-ico">✅</div><div class="cb-sh-t" style="text-align:center">Pagamento registrado</div><div class="cb-resumo">' + linhas + '</div>' +
-        '<button class="cb-b cb-b-w cb-big" style="width:100%" onclick="cbEnviarAgradecimento()">💬 Enviar agradecimento ao cliente</button>' +
-        '<div class="cb-sh-row"><button class="cb-b" onclick="cbVerRecibo()">🧾 Recibo completo</button><button class="cb-b" onclick="cbFechar()">Fechar</button></div>');
+        '<button class="cb-b cb-b-w cb-big" style="width:100%" onclick="cbAbrirRecibo()">🧾 Abrir recibo e enviar (completo)</button>' +
+        '<div class="cb-warn" style="color:var(--muted)">Abre o recibo e envia imagem + agradecimento + resumo dos pagamentos no WhatsApp.</div>' +
+        '<div class="cb-sh-row"><button class="cb-b" onclick="cbEnviarAgradecimento()">💬 Só o texto</button><button class="cb-b" onclick="cbFechar()">Fechar</button></div>');
     }
     let cbRes = null, cbMsgAdiar = "";
     function cbEnviarAgradecimento() { cbAbrirWpp(cbRes.telefone, cbMsgAgradecimento(cbRes)); }
+    // recibo + agradecimento juntos: o texto entra no início da mensagem do recibo (WhatsApp/compartilhar)
+    function cbAbrirRecibo() { window._rcTextoExtra = cbMsgAgradecimento(cbRes); cbVerRecibo(); }
     async function cbVerRecibo() {
       try {
         cbFechar();
@@ -11948,6 +11937,7 @@
         try { if (typeof refreshBaixasForPedido === "function") await refreshBaixasForPedido(cbRes.idPedido, cbRes.total); } catch (e) {}
         await showBaixaReceipt({ idPedido: cbRes.idPedido, telefone: cbRes.telefone, nomeCliente: cbRes.nomeCliente, valorFinal: cbRes.total, valorOriginal: cbRes.total }, ped);
       } catch (e) { toast("Não consegui abrir o recibo: " + e.message, "err"); }
+      finally { window._rcTextoExtra = ""; }
     }
 
     // 📅 Adiar — nova data combinada
@@ -11978,7 +11968,8 @@
         '<div class="cb-menu">' +
         '<button class="cb-b" onclick="cbFechar();cbVerPedido()">🔎 Ver o pedido (itens, histórico)</button>' +
         '<button class="cb-b" onclick="cbCopiar(cbMsg(cbCur),\'Mensagem copiada ✅\');cbFechar()">📋 Copiar mensagem de cobrança</button>' +
-        '<button class="cb-b" onclick="cbCopiar(cbPix(cbQuanto(cbCur)),\'Pix copia e cola copiado ✅\');cbFechar()">💠 Copiar Pix (' + fmt(cbQuanto(c)) + ')</button>' +
+        '<button class="cb-b" onclick="cbCopiar(CB_PIX.tel,\'Número do Pix copiado ✅\');cbFechar()">💠 Copiar nº do Pix (' + CB_PIX.telFmt + ')</button>' +
+        '<button class="cb-b" onclick="cbCopiar(cbPixValor(cbQuanto(cbCur)),\'Valor copiado ✅\');cbFechar()">💰 Copiar valor (' + fmt(cbQuanto(c)) + ')</button>' +
         (c.telefone ? '<a class="cb-b" href="tel:+55' + cbEsc(c.telefone) + '">📞 Ligar</a>' : "") + '</div>');
     }
     async function cbVerPedido() {
@@ -11989,16 +11980,6 @@
       } catch (e) { toast("Erro: " + e.message, "err"); }
     }
 
-    // ── resumo na Home ─────────────────────────────────────────────────────
-    function renderHomeCobr(r) {
-      const el = document.getElementById("homeCobrancas"); if (!el) return;
-      if (!r || !r.ok) { el.innerHTML = '<div class="empty" style="color:var(--muted)">Não consegui carregar as cobranças.</div><button class="cb-b cb-big" style="width:100%;margin-top:8px" onclick="goPage(\'cobrar\')">💰 Abrir tela Cobrar</button>'; return; }
-      const t = r.totais, top = r.cobrancas.filter(c => c.urgencia === "atrasado" || c.urgencia === "hoje" || c.urgencia === "amanha").slice(0, 4);
-      const kp = (l, v, n, cor) => '<div style="flex:1;min-width:0;background:var(--d3);border-radius:10px;padding:8px 6px;text-align:center"><div style="font-size:10px;color:var(--muted)">' + l + '</div><div style="font-size:14px;font-weight:800;color:' + cor + '">' + fmt(v) + '</div><div style="font-size:10px;color:var(--muted)">' + n + '</div></div>';
-      el.innerHTML = '<div style="display:flex;gap:6px;margin-bottom:10px">' + kp("Atrasado", t.atrasado, t.qtdAtrasado + " cliente(s)", "var(--r)") + kp("Hoje", t.valorHoje, t.qtdHoje + " cliente(s)", "var(--o)") + kp("Amanhã", t.valorAmanha, t.qtdAmanha + " cliente(s)", "#ffc107") + '</div>' +
-        (top.length ? top.map(c => '<div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--border)"><div style="flex:1;min-width:0"><div style="font-size:13px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + cbEsc(c.nome) + '</div><div style="font-size:11px;color:var(--muted)">' + cbRotulo(c) + '</div></div><div style="font-size:13px;font-weight:800">' + fmt(cbQuanto(c)) + '</div></div>').join("") : '<div class="empty" style="color:var(--muted)">Nada vencendo agora 🎉</div>') +
-        '<button class="cb-b cb-b-w cb-big" style="width:100%;margin-top:10px" onclick="goPage(\'cobrar\')">💰 Abrir tela Cobrar (' + t.qtdTotal + ')</button>';
-    }
   </script>
 </body>
 
