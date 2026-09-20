@@ -3400,6 +3400,75 @@
       </div>
     </div>
 
+    <!-- COBRAR (2026-09-20) -->
+    <style>
+      #page-cobrar { padding-bottom: 90px; }
+      .cb-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+      .cb-h1 { font-family: var(--H); font-size: 18px; font-weight: 800; }
+      .cb-resumo-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin-bottom: 12px; }
+      .cb-kpi { background: var(--d2); border: 1px solid var(--border); border-radius: 13px; padding: 11px 10px; min-width: 0; }
+      .cb-kpi-main { grid-column: 1 / -1; background: linear-gradient(135deg, rgba(0,230,118,.10), rgba(0,188,212,.06)); border-color: rgba(0,230,118,.25); }
+      .cb-kl { font-size: 11px; color: var(--muted); }
+      .cb-kv { font-family: var(--H); font-size: 17px; font-weight: 800; margin: 2px 0; }
+      .cb-kpi-main .cb-kv { font-size: 24px; color: var(--g); }
+      .cb-ks { font-size: 10px; color: var(--muted); }
+      .cb-k-r .cb-kv { color: var(--r); } .cb-k-o .cb-kv { color: var(--o); } .cb-k-y .cb-kv { color: #ffc107; }
+      .cb-filtros { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 8px; margin-bottom: 6px; scrollbar-width: none; }
+      .cb-filtros::-webkit-scrollbar { display: none; }
+      .cb-chip { background: var(--d2); border: 1px solid var(--border); color: var(--text); border-radius: 20px; padding: 7px 13px; font-size: 12px; font-weight: 700; cursor: pointer; white-space: nowrap; font-family: var(--B); }
+      .cb-chip.on { background: var(--g); color: #04140b; border-color: var(--g); }
+      .cb-n { opacity: .7; font-weight: 600; margin-left: 2px; }
+      .cb-card { background: var(--d2); border: 1px solid var(--border); border-left: 4px solid var(--muted); border-radius: 13px; padding: 12px 13px; margin-bottom: 10px; }
+      .cb-card.cb-atrasado { border-left-color: var(--r); } .cb-card.cb-hoje { border-left-color: var(--o); }
+      .cb-card.cb-amanha { border-left-color: #ffc107; } .cb-card.cb-proximo { border-left-color: var(--c); }
+      .cb-flash { animation: cbflash 1.6s ease 2; }
+      @keyframes cbflash { 50% { box-shadow: 0 0 0 3px var(--g); } }
+      .cb-top { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+      .cb-nome { font-size: 15px; font-weight: 800; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .cb-id { font-size: 11px; font-weight: 500; color: var(--muted); }
+      .cb-val { font-family: var(--H); font-size: 17px; font-weight: 800; flex-shrink: 0; }
+      .cb-sub { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 6px; align-items: center; }
+      .cb-pill { font-size: 11px; font-weight: 700; padding: 3px 9px; border-radius: 20px; background: var(--d3); }
+      .cb-p-atrasado { color: var(--r); background: rgba(244,67,54,.12); } .cb-p-hoje { color: var(--o); background: rgba(255,109,0,.12); }
+      .cb-p-amanha { color: #ffc107; background: rgba(255,193,7,.12); }
+      .cb-tag { font-size: 10px; font-weight: 700; padding: 3px 8px; border-radius: 20px; background: var(--d3); color: var(--muted); }
+      .cb-tag-r { color: var(--r); }
+      .cb-itens { font-size: 11px; color: var(--muted); margin-top: 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .cb-warn { font-size: 11px; color: var(--o); margin-top: 6px; }
+      .cb-btns { display: grid; grid-template-columns: 1.3fr 1.3fr 1fr auto; gap: 7px; margin-top: 10px; }
+      .cb-b { background: var(--d3); border: 1px solid var(--border); color: var(--text); border-radius: 10px; padding: 10px 8px; font-size: 13px; font-weight: 700; cursor: pointer; font-family: var(--B); text-decoration: none; text-align: center; min-height: 42px; display: inline-flex; align-items: center; justify-content: center; }
+      .cb-b:active { opacity: .7; }
+      .cb-b-w { background: rgba(37,211,102,.16); border-color: #25d366; color: #25d366; }
+      .cb-b-g { background: var(--g); border-color: var(--g); color: #04140b; }
+      .cb-b-m { padding: 10px 14px; }
+      .cb-big { min-height: 48px; font-size: 14px; flex: 1; }
+      #cbOv { position: fixed; inset: 0; z-index: 400; background: rgba(0,0,0,.6); backdrop-filter: blur(4px); display: none; align-items: flex-end; justify-content: center; }
+      #cbOv.on { display: flex; }
+      #cbSh { background: var(--d1); border-radius: 20px 20px 0 0; border-top: 1px solid var(--border); padding: 12px 16px calc(18px + var(--sb)); width: 100%; max-width: 560px; max-height: 90vh; overflow-y: auto; animation: su .28s cubic-bezier(.16,1,.3,1); }
+      .cb-sh-t { font-family: var(--H); font-size: 16px; font-weight: 800; margin-bottom: 10px; }
+      .cb-sh-row { display: flex; gap: 8px; margin-top: 8px; }
+      .cb-sh-row .cb-b { flex: 1; }
+      .cb-ta { width: 100%; font-size: 13px; line-height: 1.45; resize: vertical; margin-bottom: 4px; }
+      .cb-resumo { background: var(--d3); border-radius: 10px; padding: 10px 12px; font-size: 13px; line-height: 1.55; margin-bottom: 12px; }
+      .cb-lbl { display: block; font-size: 12px; font-weight: 700; margin: 10px 0 6px; }
+      .cb-inp { width: 100%; font-size: 20px; font-weight: 800; padding: 12px; }
+      .cb-chips { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+      .cb-det { margin-top: 12px; font-size: 12px; color: var(--muted); } .cb-det input { margin-top: 8px; }
+      .cb-ok { width: 100%; margin-top: 14px; background: var(--g); color: #04140b; border: 0; border-radius: 12px; padding: 15px; font-size: 16px; font-weight: 800; font-family: var(--H); cursor: pointer; }
+      .cb-ok:disabled { opacity: .45; }
+      .cb-ok-ico { font-size: 44px; text-align: center; margin-bottom: 4px; }
+      .cb-menu { display: flex; flex-direction: column; gap: 8px; }
+    </style>
+    <div class="page" id="page-cobrar">
+      <div class="cb-head">
+        <div class="cb-h1">💰 Cobrar</div>
+        <button class="cb-b" onclick="loadCobrar(true)">↻ Atualizar</button>
+      </div>
+      <div class="cb-resumo-grid" id="cbResumo"></div>
+      <div class="cb-filtros" id="cbFiltros"></div>
+      <div id="cbList"><div class="loading"><div class="spin"></div>Carregando...</div></div>
+    </div>
+
     <!-- MARKETING -->
     <div class="page" id="page-mkt">
       <div class="mkt-section-title">Marketing — Cards Promocionais</div>
@@ -3598,6 +3667,9 @@
     <div id="maisSheet">
       <div class="mais-handle"></div>
       <div class="mais-grid">
+        <button class="mais-item" onclick="closeMaisSheet();goPage('cobrar',document.getElementById('nav-mais'))">
+          <span class="mais-ico">💰</span>Cobrar
+        </button>
         <button class="mais-item" onclick="closeMaisSheet();goPage('doc',document.getElementById('nav-mais'))">
           <span class="mais-ico">📄</span>Docs
         </button>
@@ -4933,7 +5005,7 @@
     }
 
     // NAVIGATION
-    const MAIS_PAGES = ["doc", "mkt", "cat", "analytics", "cupons", "op", "clientes", "automacoes", "destaques"];
+    const MAIS_PAGES = ["cobrar", "doc", "mkt", "cat", "analytics", "cupons", "op", "clientes", "automacoes", "destaques"];
     function goPage(id, btn) {
       // score foi unificado em clientes
       if (id === "score") { goPage("clientes", btn); return; }
@@ -4950,6 +5022,7 @@
       } else if (btn) {
         btn.classList.add("on");
       }
+      if (id === "cobrar") loadCobrar(true);
       if (id === "home") loadHome(homeFilter);
       if (id === "prod") loadProds();
       if (id === "ped") loadPeds();
@@ -5026,9 +5099,9 @@
           apiGet("getProdutos"),
           apiGet("getPedidos"),
           apiGet("getResumoPeriodo", { periodo: homeFilter }).catch(() => null),
-          apiGet("getCobrancasPendentes").catch(() => null)
+          apiPost("getCobrancasV2", { token: TOKEN }).catch(() => null)
         ]);
-        renderCobrancas(cb && cb.ok ? cb.cobrancas : []);
+        renderHomeCobr(cb);
         const prods = (pr && Array.isArray(pr.produtos)) ? pr.produtos : [];
         const peds  = (pp && Array.isArray(pp.pedidos))  ? pp.pedidos  : [];
         allProds = prods; allPeds = peds; _allProdsFull = false; // home só traz Ativos — força reload com verTodos ao abrir Produtos
@@ -11580,6 +11653,353 @@
       <div class="nm-list" id="nocatList"></div>
     </div>
   </div>
+  <!-- ══ COBRAR (2026-09-20) — tela de cobrança: quem cobrar, mensagem pronta + Pix, "Recebi" em 2 toques ══
+       Backend: gas/Cobrancas.js (getCobrancasV2 / receberCobranca / adiarCobranca). Pesquisa: mind/PESQUISA-COBRANCA-2026-09-20.md -->
+  <script>
+    // Chave Pix do dono (telefone). Nome ≤25 e cidade ≤15 caracteres, sem acento (regra do BR Code).
+    const CB_PIX = { chave: "+5521970363062", nome: "GJ STORE", cidade: "RIO DE JANEIRO", telFmt: "(21) 97036-3062" };
+
+    let cbData = null, cbFilter = "todos", cbCur = null, cbRec = null, cbDeepDone = false, cbLoading = false;
+
+    // ── utilidades ─────────────────────────────────────────────────────────
+    function cbEsc(s) { return String(s == null ? "" : s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])); }
+    function cbAscii(s, max) { return String(s).normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^A-Za-z0-9 ]/g, "").toUpperCase().slice(0, max); }
+    function cbPrimeiroNome(n) { const p = String(n || "").trim().split(/\s+/)[0] || ""; return p ? p[0].toUpperCase() + p.slice(1).toLowerCase() : ""; }
+    function cbHojeISO() { const d = new Date(); return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); }
+    function cbISOaddDias(n) { const d = new Date(); d.setDate(d.getDate() + n); return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); }
+    function cbBR(iso) { const m = String(iso || "").match(/^(\d{4})-(\d{2})-(\d{2})/); return m ? m[3] + "/" + m[2] + "/" + m[1] : String(iso || ""); }
+    function cbCopiar(txt, okMsg) {
+      const ok = () => toast(okMsg || "Copiado ✅");
+      if (navigator.clipboard && navigator.clipboard.writeText) { navigator.clipboard.writeText(txt).then(ok, () => cbCopiarFallback(txt, ok)); }
+      else cbCopiarFallback(txt, ok);
+    }
+    function cbCopiarFallback(txt, ok) {
+      const ta = document.createElement("textarea"); ta.value = txt; ta.style.cssText = "position:fixed;opacity:0";
+      document.body.appendChild(ta); ta.select(); try { document.execCommand("copy"); ok(); } catch (e) { toast("Não consegui copiar", "err"); } ta.remove();
+    }
+
+    // ── Pix copia e cola (BR Code estático com valor) ───────────────────────
+    function cbCrc16(str) {
+      let crc = 0xFFFF;
+      for (let i = 0; i < str.length; i++) {
+        crc ^= str.charCodeAt(i) << 8;
+        for (let b = 0; b < 8; b++) crc = (crc & 0x8000) ? ((crc << 1) ^ 0x1021) & 0xFFFF : (crc << 1) & 0xFFFF;
+      }
+      return crc.toString(16).toUpperCase().padStart(4, "0");
+    }
+    function cbTlv(id, val) { return id + String(val.length).padStart(2, "0") + val; }
+    function cbPix(valor) {
+      const gui = cbTlv("00", "br.gov.bcb.pix") + cbTlv("01", CB_PIX.chave);
+      let p = cbTlv("00", "01") + cbTlv("01", "11") + cbTlv("26", gui) + cbTlv("52", "0000") + cbTlv("53", "986");
+      if (valor > 0) p += cbTlv("54", Number(valor).toFixed(2));
+      p += cbTlv("58", "BR") + cbTlv("59", cbAscii(CB_PIX.nome, 25)) + cbTlv("60", cbAscii(CB_PIX.cidade, 15)) + cbTlv("62", cbTlv("05", "***"));
+      p += "6304";
+      return p + cbCrc16(p);
+    }
+
+    // ── mensagens (tom educado; juros só aparecem quando já há atraso) ──────
+    function cbQuanto(c) { return c.urgencia === "sem_data" ? c.saldo : (c.diasAtraso > 0 ? c.valorComJuros : c.valor); }
+    function cbRotulo(c) {
+      if (c.urgencia === "atrasado") return "⚠️ " + c.diasAtraso + (c.diasAtraso === 1 ? " dia" : " dias") + " de atraso · venceu " + c.vencimento;
+      if (c.urgencia === "hoje") return "🔴 Vence hoje";
+      if (c.urgencia === "amanha") return "🟠 Vence amanhã";
+      if (c.urgencia === "sem_data") return "❔ Sem vencimento definido";
+      return "📅 Vence " + c.vencimento + " (em " + c.diasParaVencer + "d)";
+    }
+    const CB_FOOT_PRAZO = "\n\n🙏 Pagando até a data combinada você *não paga nenhum juros*. Obrigado por respeitar o combinado e por apoiar a GJ Store! 💚";
+    const CB_FOOT_ATRASO = "\n\nQualquer dificuldade, é só me avisar que a gente combina uma solução. Obrigado pela compreensão! 🙏";
+    function cbMsg(c) {
+      const nome = cbPrimeiroNome(c.nome), id = c.idPedido;
+      const jd = (cbData && cbData.jurosDia) || 5;
+      const parc = c.parcelas > 1 ? "parcela " + c.parcela + "/" + c.parcelas + " do seu pedido #" + id : "pagamento do seu pedido #" + id;
+      const oParc = (c.parcelas > 1 ? "a " : "o ") + parc, OParc = (c.parcelas > 1 ? "A " : "O ") + parc;
+      const quanto = cbQuanto(c);
+      const pix = quanto > 0 ? "\n\n💠 *Pix copia e cola:*\n" + cbPix(quanto) + "\n_(chave Pix = telefone " + CB_PIX.telFmt + ")_" : "";
+      const jurosLn = c.juros > 0
+        ? "\n➕ Juros de atraso (" + fmt(jd) + "/dia × " + c.diasAtraso + "d): " + fmt(c.juros) + "\n✅ *Total hoje: " + fmt(c.valorComJuros) + "*"
+        : "";
+      const cab = "Olá, " + nome + "! Tudo bem? 😊\n\n";
+      switch (c.estagio) {
+        case "antes":
+          return cab + "Passando para lembrar que " + oParc + " vence em *" + c.vencimento + "* (daqui a " + c.diasParaVencer + " dias).\n\n💰 Valor: *" + fmt(c.valor) + "*" + pix + "\n\nAssim que pagar, é só me mandar o comprovante por aqui." + CB_FOOT_PRAZO;
+        case "amanha":
+          return cab + "Só um lembrete: " + oParc + " vence *amanhã* (" + c.vencimento + ").\n\n💰 Valor: *" + fmt(c.valor) + "*" + pix + "\n\nAssim que pagar, é só me mandar o comprovante por aqui." + CB_FOOT_PRAZO;
+        case "hoje":
+          return cab + "Hoje é o vencimento d" + oParc + ".\n\n💰 Valor: *" + fmt(c.valor) + "*" + pix + "\n\nAssim que pagar, é só me mandar o comprovante por aqui." + CB_FOOT_PRAZO;
+        case "atraso":
+          return cab + OParc + " venceu dia *" + c.vencimento + "* e ainda não identifiquei o pagamento. Às vezes passa batido, acontece! 🙂\n\n💰 Valor: " + fmt(c.valor) + jurosLn + pix + "\n\nSe já pagou, me avisa que eu confiro." + CB_FOOT_ATRASO;
+        case "atraso_juros":
+          return cab + OParc + " já está com *" + c.diasAtraso + " dias* de atraso (venceu dia " + c.vencimento + ").\n\n💰 Valor: " + fmt(c.valor) + jurosLn + pix + "\n\nSe já pagou, me avisa que eu confiro. Se preferir, me diz qual dia fica bom pra você que eu ajusto." + CB_FOOT_ATRASO;
+        case "negociar":
+          return cab + "Quero resolver " + oParc + " de forma tranquila pra nós dois. Ele venceu dia " + c.vencimento + " (" + c.diasAtraso + " dias).\n\n💰 Valor: " + fmt(c.valor) + jurosLn + "\n\nPosso *negociar*: nova data ou dividir o valor. Me responde por aqui hoje? 🙏" + pix + CB_FOOT_ATRASO;
+        default:
+          return cab + "Passando para combinar o pagamento do pedido #" + id + ". Falta *" + fmt(c.saldo) + "*.\n\nQual dia fica melhor para você? 😊" + pix;
+      }
+    }
+    function cbMsgAgradecimento(r) {
+      const nome = cbPrimeiroNome(r.nomeCliente), id = r.idPedido;
+      let m = "✅ *Pagamento recebido!*\n\nOlá, " + nome + "! Recebi " + fmt(r.recebido) + " do pedido #" + id + ".";
+      if (r.jurosCobrados > 0) m += "\n(inclui " + fmt(r.jurosCobrados) + " de juros por " + r.diasAtraso + " dia(s) de atraso)";
+      if (r.quitado) m += "\n\n🎉 *Pedido quitado!*";
+      else m += "\n\n📊 Saldo restante: *" + fmt(r.novoSaldo) + "*" + (r.proximaVencimento ? "\n📅 Próximo vencimento: *" + r.proximaVencimento + "*" : "");
+      if (r.pontual) m += "\n\n🙏 Obrigado por respeitar a data combinada — por isso *não houve juros*. Agradecemos de coração por nos apoiar! 💚";
+      else m += "\n\nObrigado pelo pagamento! Foi um prazer, conte sempre com a gente. 🙏💚";
+      return m;
+    }
+    function cbAbrirWpp(tel, msg) {
+      const t = String(tel || "").replace(/\D/g, "");
+      if (!t) { cbCopiar(msg, "Sem telefone — mensagem copiada ✅"); return; }
+      window.open("https://wa.me/55" + t + "?text=" + encodeURIComponent(msg), "_blank");
+    }
+
+    // ── carregar e desenhar ────────────────────────────────────────────────
+    async function loadCobrar(force) {
+      const box = document.getElementById("cbList");
+      if (!box || cbLoading) return;
+      cbLoading = true;
+      if (!cbData || force) box.innerHTML = '<div class="loading"><div class="spin"></div>Carregando cobranças...</div>';
+      try {
+        const r = await apiPost("getCobrancasV2", { token: TOKEN });
+        if (!r || !r.ok) throw new Error((r && r.error) || "Falha ao carregar");
+        cbData = r;
+        cbRender();
+        cbDeepLink();
+      } catch (e) {
+        const expirou = /autoriz/i.test(e.message);
+        box.innerHTML = '<div class="empty" style="color:var(--r)">' + (expirou ? "Sua sessão expirou (12h). Entre de novo para ver as cobranças." : "Erro: " + cbEsc(e.message)) + '</div><div style="text-align:center;margin-top:10px"><button class="cb-b" onclick="' + (expirou ? "logout()" : "loadCobrar(true)") + '">' + (expirou ? "🔑 Entrar de novo" : "↻ Tentar de novo") + '</button></div>';
+      } finally { cbLoading = false; }
+    }
+    function cbFiltrar(lista) {
+      switch (cbFilter) {
+        case "atrasado": return lista.filter(c => c.urgencia === "atrasado");
+        case "hoje": return lista.filter(c => c.urgencia === "hoje");
+        case "amanha": return lista.filter(c => c.urgencia === "amanha");
+        case "semana": return lista.filter(c => c.urgencia === "proximo" || c.urgencia === "amanha" || c.urgencia === "hoje");
+        case "depois": return lista.filter(c => c.urgencia === "futuro");
+        case "sem_data": return lista.filter(c => c.urgencia === "sem_data");
+        default: return lista;
+      }
+    }
+    function cbSetFiltro(f) { cbFilter = f; cbRender(); }
+    function cbRender() {
+      const box = document.getElementById("cbList"); if (!box || !cbData) return;
+      const t = cbData.totais, L = cbData.cobrancas;
+      const cnt = f => { const s = cbFilter; cbFilter = f; const n = cbFiltrar(L).length; cbFilter = s; return n; };
+      document.getElementById("cbResumo").innerHTML =
+        '<div class="cb-kpi cb-kpi-main"><div class="cb-kl">A receber (tudo)</div><div class="cb-kv">' + fmt(t.aReceber) + '</div><div class="cb-ks">' + t.qtdTotal + ' pedido(s) em aberto</div></div>' +
+        '<div class="cb-kpi cb-k-r"><div class="cb-kl">⚠️ Atrasado</div><div class="cb-kv">' + fmt(t.atrasado) + '</div><div class="cb-ks">' + t.qtdAtrasado + ' cliente(s)' + (t.jurosAcumulado > 0 ? ' · juros ' + fmt(t.jurosAcumulado) : '') + '</div></div>' +
+        '<div class="cb-kpi cb-k-o"><div class="cb-kl">Hoje</div><div class="cb-kv">' + fmt(t.valorHoje) + '</div><div class="cb-ks">' + t.qtdHoje + ' cliente(s)</div></div>' +
+        '<div class="cb-kpi cb-k-y"><div class="cb-kl">Amanhã</div><div class="cb-kv">' + fmt(t.valorAmanha) + '</div><div class="cb-ks">' + t.qtdAmanha + ' cliente(s)</div></div>';
+      const chips = [["todos", "Tudo"], ["atrasado", "⚠️ Atrasados"], ["hoje", "Hoje"], ["amanha", "Amanhã"], ["semana", "7 dias"], ["depois", "Depois"], ["sem_data", "Sem data"]];
+      document.getElementById("cbFiltros").innerHTML = chips.map(([k, l]) =>
+        '<button class="cb-chip' + (cbFilter === k ? " on" : "") + '" onclick="cbSetFiltro(\'' + k + '\')">' + l + ' <span class="cb-n">' + cnt(k) + '</span></button>').join("");
+      const vis = cbFiltrar(L);
+      if (!vis.length) { box.innerHTML = '<div class="empty" style="color:var(--muted)">' + (L.length ? "Nada nesse filtro 🎉" : "Ninguém para cobrar 🎉") + '</div>'; return; }
+      box.innerHTML = vis.map(c => {
+        const parc = c.parcelas > 1 ? '<span class="cb-tag">Parcela ' + c.parcela + '/' + c.parcelas + '</span>' : "";
+        const jur = c.juros > 0 ? '<span class="cb-tag cb-tag-r">+ juros ' + fmt(c.juros) + '</span>' : "";
+        const jurAlto = c.juros > c.valor ? '<div class="cb-warn">Juros maiores que a parcela — considere perdoar no “Recebi”.</div>' : "";
+        const resto = c.saldo > c.valor + 0.01 ? '<span class="cb-tag">Saldo total ' + fmt(c.saldo) + '</span>' : "";
+        return '<div class="cb-card cb-' + c.urgencia + '" id="cbc-' + cbEsc(c.idPedido) + '" data-id="' + cbEsc(c.idPedido) + '">' +
+          '<div class="cb-top"><div class="cb-nome">' + cbEsc(c.nome || "—") + ' <span class="cb-id">#' + cbEsc(c.idPedido) + '</span></div><div class="cb-val">' + fmt(cbQuanto(c)) + '</div></div>' +
+          '<div class="cb-sub"><span class="cb-pill cb-p-' + c.urgencia + '">' + cbRotulo(c) + '</span>' + parc + jur + resto + '</div>' +
+          (c.itens ? '<div class="cb-itens">' + cbEsc(c.itens) + '</div>' : "") + jurAlto +
+          '<div class="cb-btns">' +
+          '<button class="cb-b cb-b-w" onclick="cbAct(\'cobrar\',this)">💬 Cobrar</button>' +
+          '<button class="cb-b cb-b-g" onclick="cbAct(\'recebi\',this)">✅ Recebi</button>' +
+          '<button class="cb-b" onclick="cbAct(\'adiar\',this)">📅 Adiar</button>' +
+          '<button class="cb-b cb-b-m" onclick="cbAct(\'mais\',this)">⋯</button></div></div>';
+      }).join("");
+    }
+    function cbAct(a, el) {
+      const id = el.closest(".cb-card").dataset.id;
+      const c = cbData.cobrancas.find(x => x.idPedido === id); if (!c) return;
+      cbCur = c;
+      if (a === "cobrar") cbSheetCobrar(c);
+      else if (a === "recebi") cbSheetRecebi(c);
+      else if (a === "adiar") cbSheetAdiar(c);
+      else cbSheetMais(c);
+    }
+    function cbDeepLink() {
+      if (cbDeepDone) return; cbDeepDone = true;
+      let id = ""; try { id = new URLSearchParams(location.search).get("cob") || ""; } catch (e) {}
+      if (!id) return;
+      const c = cbData.cobrancas.find(x => x.idPedido === id);
+      if (!c) { toast("Esse pedido já foi quitado ✅"); return; }
+      cbFilter = "todos"; cbRender();
+      const el = document.getElementById("cbc-" + id);
+      if (el) { el.scrollIntoView({ block: "center" }); el.classList.add("cb-flash"); }
+      cbCur = c; cbSheetCobrar(c);
+    }
+
+    // ── bottom sheet genérico ──────────────────────────────────────────────
+    function cbSheet(html) {
+      let ov = document.getElementById("cbOv");
+      if (!ov) {
+        ov = document.createElement("div"); ov.id = "cbOv";
+        ov.innerHTML = '<div id="cbSh"></div>';
+        ov.onclick = e => { if (e.target === ov) cbFechar(); };
+        document.body.appendChild(ov);
+      }
+      document.getElementById("cbSh").innerHTML = '<div class="mais-handle"></div>' + html;
+      ov.classList.add("on"); document.body.style.overflow = "hidden";
+    }
+    function cbFechar() { const ov = document.getElementById("cbOv"); if (ov) ov.classList.remove("on"); document.body.style.overflow = ""; }
+
+    // 💬 Cobrar — mensagem editável + Pix, WhatsApp ou copiar
+    function cbSheetCobrar(c) {
+      const msg = cbMsg(c);
+      cbSheet('<div class="cb-sh-t">💬 Cobrar ' + cbEsc(cbPrimeiroNome(c.nome)) + ' <span class="cb-id">' + cbRotulo(c) + '</span></div>' +
+        '<textarea id="cbMsgTxt" class="fi cb-ta" rows="11">' + cbEsc(msg) + '</textarea>' +
+        '<div class="cb-sh-row">' +
+        '<button class="cb-b cb-b-w cb-big" onclick="cbEnviarWpp()">💬 Abrir WhatsApp</button>' +
+        '<button class="cb-b cb-big" onclick="cbCopiar(document.getElementById(\'cbMsgTxt\').value,\'Mensagem copiada ✅\')">📋 Copiar tudo</button></div>' +
+        '<div class="cb-sh-row"><button class="cb-b" onclick="cbCopiar(cbPix(cbQuanto(cbCur)),\'Pix copia e cola copiado ✅\')">💠 Copiar só o Pix</button>' +
+        '<button class="cb-b cb-b-g" onclick="cbFechar();cbSheetRecebi(cbCur)">✅ Já pagou</button></div>' +
+        (c.telefone ? "" : '<div class="cb-warn">Cliente sem telefone cadastrado — use “Copiar”.</div>'));
+    }
+    function cbEnviarWpp() { cbAbrirWpp(cbCur.telefone, document.getElementById("cbMsgTxt").value); }
+
+    // ✅ Recebi — valor já preenchido, 1 toque para confirmar
+    function cbJurosPara(c, isoData) {
+      const m = String(c.vencimento || "").match(/^(\d{2})\/(\d{2})\/(\d{4})$/); if (!m) return 0;
+      const v = new Date(+m[3], +m[2] - 1, +m[1]), p = isoData ? new Date(isoData + "T00:00:00") : new Date(new Date().toDateString());
+      const dias = Math.max(0, Math.round((p - v) / 86400000));
+      let j = dias * ((cbData && cbData.jurosDia) || 5);
+      const teto = (cbData && cbData.jurosTetoPct) || 0;
+      if (teto > 0) j = Math.min(j, c.valor * teto / 100);
+      return Math.round(j * 100) / 100;
+    }
+    function cbSheetRecebi(c) {
+      let forma = "Pix"; try { forma = localStorage.getItem("gj_cb_forma") || "Pix"; } catch (e) {}
+      cbRec = { c, forma, perdoar: false, data: cbHojeISO() };
+      const j = cbJurosPara(c, cbRec.data);
+      cbSheet('<div class="cb-sh-t">✅ Recebi de ' + cbEsc(cbPrimeiroNome(c.nome)) + '</div>' +
+        '<div class="cb-resumo" id="cbRecResumo"></div>' +
+        '<label class="cb-lbl">Valor recebido (R$)</label>' +
+        '<input class="fi cb-inp" id="cbRecValor" type="number" step="0.01" min="0" inputmode="decimal" oninput="cbRecAtualiza(true)">' +
+        '<div class="cb-chips" id="cbRecChips"></div>' +
+        '<label class="cb-lbl">Como pagou</label>' +
+        '<div class="cb-chips" id="cbRecForma">' + ["Pix", "Dinheiro", "Cartão", "Transferência"].map(f => '<button class="cb-chip' + (f === forma ? " on" : "") + '" onclick="cbRecForma(\'' + f + '\')">' + f + '</button>').join("") + '</div>' +
+        '<details class="cb-det"><summary>Foi em outra data?</summary><input class="fi" id="cbRecData" type="date" value="' + cbRec.data + '" max="' + cbRec.data + '" onchange="cbRecData(this.value)"></details>' +
+        '<button class="cb-ok" id="cbRecOk" onclick="cbRecConfirmar()"></button>');
+      document.getElementById("cbRecValor").value = (c.valor + j).toFixed(2);
+      cbRecAtualiza(false);
+    }
+    function cbRecForma(f) { cbRec.forma = f; try { localStorage.setItem("gj_cb_forma", f); } catch (e) {} document.querySelectorAll("#cbRecForma .cb-chip").forEach(b => b.classList.toggle("on", b.textContent === f)); }
+    function cbRecData(v) { cbRec.data = v || cbHojeISO(); const j = cbJurosPara(cbRec.c, cbRec.data); cbRec.perdoar = false; document.getElementById("cbRecValor").value = (cbRec.c.valor + j).toFixed(2); cbRecAtualiza(false); }
+    function cbRecPreset(tipo) {
+      const c = cbRec.c, j = cbJurosPara(c, cbRec.data);
+      if (tipo === "tudo") { cbRec.perdoar = false; document.getElementById("cbRecValor").value = (c.valor + j).toFixed(2); }
+      else if (tipo === "semjuros") { cbRec.perdoar = true; document.getElementById("cbRecValor").value = c.valor.toFixed(2); }
+      else if (tipo === "metade") { cbRec.perdoar = false; document.getElementById("cbRecValor").value = ((c.valor + j) / 2).toFixed(2); }
+      else if (tipo === "saldo") { cbRec.perdoar = false; document.getElementById("cbRecValor").value = (c.saldo + j).toFixed(2); }
+      cbRecAtualiza(false);
+    }
+    function cbRecAtualiza(digitou) {
+      const c = cbRec.c, j = cbJurosPara(c, cbRec.data), v = Number(document.getElementById("cbRecValor").value) || 0;
+      if (digitou) cbRec.perdoar = false;
+      const jEf = cbRec.perdoar ? 0 : j;
+      document.getElementById("cbRecResumo").innerHTML =
+        (c.parcelas > 1 ? "Parcela " + c.parcela + "/" + c.parcelas + " · " : "") + "vence " + (c.vencimento || "—") + " · parcela " + fmt(c.valor) +
+        (j > 0 ? '<br><span style="color:' + (cbRec.perdoar ? "var(--g)" : "var(--o)") + '">Juros ' + fmt(j) + (cbRec.perdoar ? " — perdoados" : " (R$ " + ((cbData && cbData.jurosDia) || 5) + "/dia)") + '</span>' : "") +
+        (c.saldo > c.valor + 0.01 ? '<br>Saldo total do pedido: ' + fmt(c.saldo) : "");
+      const chips = [];
+      chips.push('<button class="cb-chip" onclick="cbRecPreset(\'tudo\')">Tudo ' + fmt(c.valor + j) + '</button>');
+      if (j > 0) chips.push('<button class="cb-chip" onclick="cbRecPreset(\'semjuros\')">Sem juros ' + fmt(c.valor) + '</button>');
+      chips.push('<button class="cb-chip" onclick="cbRecPreset(\'metade\')">Metade</button>');
+      if (c.saldo > c.valor + 0.01) chips.push('<button class="cb-chip" onclick="cbRecPreset(\'saldo\')">Quitar tudo ' + fmt(c.saldo + j) + '</button>');
+      document.getElementById("cbRecChips").innerHTML = chips.join("");
+      const ok = document.getElementById("cbRecOk"); ok.disabled = !(v > 0);
+      ok.textContent = "✅ Confirmar " + fmt(v);
+    }
+    async function cbRecConfirmar() {
+      const ok = document.getElementById("cbRecOk"); if (ok.disabled) return;
+      const c = cbRec.c, v = Number(document.getElementById("cbRecValor").value) || 0;
+      ok.disabled = true; ok.textContent = "⏳ Registrando...";
+      try {
+        const p = { token: TOKEN, idPedido: c.idPedido, valor: v, forma: cbRec.forma, perdoarJuros: cbRec.perdoar ? 1 : 0 };
+        if (cbRec.data !== cbHojeISO()) p.dataPagamento = cbRec.data;
+        const r = await apiPost("receberCobranca", p);
+        if (!r || !r.ok) { toast((r && r.error) || "Não consegui registrar", "err"); ok.disabled = false; cbRecAtualiza(false); return; }
+        cbSheetResultado(r);
+        loadCobrar(false).catch(() => {});
+        try { _baixasCache = []; } catch (e) {}
+      } catch (e) { toast("Erro de conexão — confira antes de tentar de novo", "err"); ok.disabled = false; cbRecAtualiza(false); }
+    }
+    function cbSheetResultado(r) {
+      cbRes = r;
+      const linhas = [
+        "Recebido: <b>" + fmt(r.recebido) + "</b>" + (r.forma ? " (" + cbEsc(r.forma) + ")" : ""),
+        r.jurosCobrados > 0 ? "Juros cobrados: " + fmt(r.jurosCobrados) : (r.pontual ? "Sem juros — pagou no prazo 👏" : ""),
+        r.quitado ? "🎉 <b>Pedido quitado</b>" : "Saldo restante: <b>" + fmt(r.novoSaldo) + "</b>" + (r.proximaVencimento ? " · próximo vencimento " + r.proximaVencimento : "")
+      ].filter(Boolean).join("<br>");
+      cbSheet('<div class="cb-ok-ico">✅</div><div class="cb-sh-t" style="text-align:center">Pagamento registrado</div><div class="cb-resumo">' + linhas + '</div>' +
+        '<button class="cb-b cb-b-w cb-big" style="width:100%" onclick="cbEnviarAgradecimento()">💬 Enviar agradecimento ao cliente</button>' +
+        '<div class="cb-sh-row"><button class="cb-b" onclick="cbVerRecibo()">🧾 Recibo completo</button><button class="cb-b" onclick="cbFechar()">Fechar</button></div>');
+    }
+    let cbRes = null, cbMsgAdiar = "";
+    function cbEnviarAgradecimento() { cbAbrirWpp(cbRes.telefone, cbMsgAgradecimento(cbRes)); }
+    async function cbVerRecibo() {
+      try {
+        cbFechar();
+        let ped = (typeof allPeds !== "undefined" && allPeds || []).find(p => String(p["ID Pedido"]) === String(cbRes.idPedido));
+        if (!ped) { const g = await apiGet("getPedidoById", { id: cbRes.idPedido }); ped = g && (g.pedido || g); }
+        try { if (typeof refreshBaixasForPedido === "function") await refreshBaixasForPedido(cbRes.idPedido, cbRes.total); } catch (e) {}
+        await showBaixaReceipt({ idPedido: cbRes.idPedido, telefone: cbRes.telefone, nomeCliente: cbRes.nomeCliente, valorFinal: cbRes.total, valorOriginal: cbRes.total }, ped);
+      } catch (e) { toast("Não consegui abrir o recibo: " + e.message, "err"); }
+    }
+
+    // 📅 Adiar — nova data combinada
+    function cbSheetAdiar(c) {
+      cbSheet('<div class="cb-sh-t">📅 Nova data com ' + cbEsc(cbPrimeiroNome(c.nome)) + '</div>' +
+        '<div class="cb-resumo">Vencimento atual: ' + (c.vencimento || "—") + ' · ' + fmt(c.valor) + '</div>' +
+        '<div class="cb-chips">' + [[3, "+3 dias"], [7, "+7 dias"], [15, "+15 dias"], [30, "+30 dias"]].map(([n, l]) => '<button class="cb-chip" onclick="document.getElementById(\'cbAdData\').value=cbISOaddDias(' + n + ')">' + l + '</button>').join("") + '</div>' +
+        '<input class="fi cb-inp" id="cbAdData" type="date" value="' + cbISOaddDias(7) + '" min="' + cbHojeISO() + '">' +
+        '<button class="cb-ok" onclick="cbAdiarConfirmar()">📅 Combinar essa data</button>');
+    }
+    async function cbAdiarConfirmar() {
+      const d = document.getElementById("cbAdData").value; if (!d) return;
+      try {
+        const r = await apiPost("adiarCobranca", { token: TOKEN, idPedido: cbCur.idPedido, novaData: d });
+        if (!r || !r.ok) { toast((r && r.error) || "Erro", "err"); return; }
+        const c = cbCur;
+        cbMsgAdiar = "Olá, " + cbPrimeiroNome(c.nome) + "! Combinado então: o pagamento do pedido #" + c.idPedido + " (" + fmt(c.valor) + ") fica para *" + cbBR(d) + "*. Obrigado pela atenção! 🙏💚";
+        cbSheet('<div class="cb-ok-ico">📅</div><div class="cb-sh-t" style="text-align:center">Nova data: ' + cbBR(d) + '</div>' +
+          '<button class="cb-b cb-b-w cb-big" style="width:100%" onclick="cbAbrirWpp(cbCur.telefone,cbMsgAdiar)">💬 Confirmar combinado no WhatsApp</button>' +
+          '<div class="cb-sh-row"><button class="cb-b" onclick="cbFechar()">Fechar</button></div>');
+        loadCobrar(false).catch(() => {});
+      } catch (e) { toast("Erro de conexão", "err"); }
+    }
+
+    // ⋯ mais ações
+    function cbSheetMais(c) {
+      cbSheet('<div class="cb-sh-t">' + cbEsc(c.nome) + ' <span class="cb-id">#' + cbEsc(c.idPedido) + '</span></div>' +
+        '<div class="cb-menu">' +
+        '<button class="cb-b" onclick="cbFechar();cbVerPedido()">🔎 Ver o pedido (itens, histórico)</button>' +
+        '<button class="cb-b" onclick="cbCopiar(cbMsg(cbCur),\'Mensagem copiada ✅\');cbFechar()">📋 Copiar mensagem de cobrança</button>' +
+        '<button class="cb-b" onclick="cbCopiar(cbPix(cbQuanto(cbCur)),\'Pix copia e cola copiado ✅\');cbFechar()">💠 Copiar Pix (' + fmt(cbQuanto(c)) + ')</button>' +
+        (c.telefone ? '<a class="cb-b" href="tel:+55' + cbEsc(c.telefone) + '">📞 Ligar</a>' : "") + '</div>');
+    }
+    async function cbVerPedido() {
+      try {
+        let ped = (typeof allPeds !== "undefined" && allPeds || []).find(p => String(p["ID Pedido"]) === String(cbCur.idPedido));
+        if (!ped) { const g = await apiGet("getPedidoById", { id: cbCur.idPedido }); ped = g && (g.pedido || g); }
+        if (ped) openDetail(ped); else toast("Pedido não encontrado", "err");
+      } catch (e) { toast("Erro: " + e.message, "err"); }
+    }
+
+    // ── resumo na Home ─────────────────────────────────────────────────────
+    function renderHomeCobr(r) {
+      const el = document.getElementById("homeCobrancas"); if (!el) return;
+      if (!r || !r.ok) { el.innerHTML = '<div class="empty" style="color:var(--muted)">Não consegui carregar as cobranças.</div><button class="cb-b cb-big" style="width:100%;margin-top:8px" onclick="goPage(\'cobrar\')">💰 Abrir tela Cobrar</button>'; return; }
+      const t = r.totais, top = r.cobrancas.filter(c => c.urgencia === "atrasado" || c.urgencia === "hoje" || c.urgencia === "amanha").slice(0, 4);
+      const kp = (l, v, n, cor) => '<div style="flex:1;min-width:0;background:var(--d3);border-radius:10px;padding:8px 6px;text-align:center"><div style="font-size:10px;color:var(--muted)">' + l + '</div><div style="font-size:14px;font-weight:800;color:' + cor + '">' + fmt(v) + '</div><div style="font-size:10px;color:var(--muted)">' + n + '</div></div>';
+      el.innerHTML = '<div style="display:flex;gap:6px;margin-bottom:10px">' + kp("Atrasado", t.atrasado, t.qtdAtrasado + " cliente(s)", "var(--r)") + kp("Hoje", t.valorHoje, t.qtdHoje + " cliente(s)", "var(--o)") + kp("Amanhã", t.valorAmanha, t.qtdAmanha + " cliente(s)", "#ffc107") + '</div>' +
+        (top.length ? top.map(c => '<div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--border)"><div style="flex:1;min-width:0"><div style="font-size:13px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + cbEsc(c.nome) + '</div><div style="font-size:11px;color:var(--muted)">' + cbRotulo(c) + '</div></div><div style="font-size:13px;font-weight:800">' + fmt(cbQuanto(c)) + '</div></div>').join("") : '<div class="empty" style="color:var(--muted)">Nada vencendo agora 🎉</div>') +
+        '<button class="cb-b cb-b-w cb-big" style="width:100%;margin-top:10px" onclick="goPage(\'cobrar\')">💰 Abrir tela Cobrar (' + t.qtdTotal + ')</button>';
+    }
+  </script>
 </body>
 
 </html>
