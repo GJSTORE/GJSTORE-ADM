@@ -6646,7 +6646,7 @@
       if (!el) return;
 
       const todas = (_baixasCache || []).filter(b => String(b["ID_Pedido"] || "") === String(pedId));
-      const pagas    = todas.filter(b => String(b["Status_Pagamento"] || "") !== "Pendente");
+      const pagas    = todas.filter(b => { const st = String(b["Status_Pagamento"] || ""); return st !== "Pendente" && st !== "Liquidado"; });
       const pendentes = todas.filter(b => String(b["Status_Pagamento"] || "") === "Pendente");
       const totalPago = pagas.reduce((s, b) => s + Number(b["Valor_Final_Recebido"] || 0), 0);
       const saldo = Math.max(0, totalPed - totalPago);
@@ -6655,9 +6655,10 @@
       const nPagas = pagas.length;
       const nPend  = pendentes.length;
       const nTotal = todas.length;
-      const qtdParcRes = Number((currentDetailPed && (currentDetailPed["Qtd_Parcelas"] || currentDetailPed["qtdParcelas"])) || 0);
+      const plRes = _rcPlano(currentDetailPed, todas);
+      const qtdParcRes = plRes ? plRes.n : Number((currentDetailPed && (currentDetailPed["Qtd_Parcelas"] || currentDetailPed["qtdParcelas"])) || 0);
       const totalParcRes = qtdParcRes || (nPagas + nPend) || 0;
-      const valorParcelaRes = totalParcRes > 0 ? totalPed / totalParcRes : 0;
+      const valorParcelaRes = plRes ? plRes.valor : (totalParcRes > 0 ? totalPed / totalParcRes : 0);
 
       // Monta linhas de histórico (pagas primeiro, pendentes depois)
       const rowHtml = (arr, isPend) => arr.map((b, i) => {
@@ -7052,6 +7053,50 @@
       ]);
     }
 
+    // 2026-10-18: plano fixo nas Observações ("21x de R$350,00 + 1x de R$250") — MESMA regra do GAS
+    // (_cobPlano em gas/Cobrancas.js): valor por parcela, a última pelo que sobra, vencimento todo mês no mesmo dia.
+    // null = pedido sem plano → recibo segue a conta antiga.
+    function _rcDia(v) {
+      const s = String(v || "").trim();
+      let m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+      if (m) return new Date(+m[3], +m[2] - 1, +m[1]);
+      m = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+      if (!m) return null;
+      const d = new Date(s);
+      return isNaN(d) ? new Date(+m[1], +m[2] - 1, +m[3]) : new Date(d.getFullYear(), d.getMonth(), d.getDate());
+    }
+    function _rcPlano(ped, historico) {
+      ped = ped || {};
+      const total = Number(ped["Total (R$)"] || ped.total || 0);
+      const obs = String(ped["Observações"] || ped.obs || "");
+      const re = /(\d{1,3})\s*x\s*(?:de\s*)?R?\$?\s*(\d{1,3}(?:\.\d{3})*(?:,\d{1,2})?|\d+(?:\.\d{1,2})?)/gi;
+      const valores = []; let m;
+      while ((m = re.exec(obs))) {
+        const q = +m[1], v = m[2].includes(",") ? Number(m[2].replace(/\./g, "").replace(",", ".")) : Number(m[2]);
+        if (q > 0 && v > 0) for (let i = 0; i < q && valores.length <= 120; i++) valores.push(v);
+      }
+      if (valores.length < 2 || valores.length > 120) return null;
+      let acc = 0; const cum = valores.map(v => Math.round((acc += v) * 100) / 100);
+      if (Math.abs(acc - total) > 1) return null;
+      const bx = historico || [];
+      const pago = bx.filter(b => { const st = String(b["Status_Pagamento"] || ""); return st !== "Pendente" && st !== "Liquidado"; })
+        .reduce((s, b) => s + Math.max(0, Number(b["Valor_Final_Recebido"] || 0) - Number(b["Taxa_Aplicada_RS"] || 0)), 0);
+      const pend = bx.filter(b => String(b["Status_Pagamento"] || "") === "Pendente")
+        .sort((a, b) => String(b["ID_Baixa"] || "").localeCompare(String(a["ID_Baixa"] || "")))[0];
+      const vencPend = pend ? _rcDia(pend["Proxima_Vencimento"]) : null;
+      const dv = _rcDia(ped["Data_Vencimento"]);
+      const dia = dv ? dv.getDate() : (vencPend ? vencPend.getDate() : 0);
+      const base = _rcDia(ped["Data/Hora"]) || _rcDia(ped["Data_Criacao"]);
+      const dm = (a, mes, d) => new Date(a, mes, Math.min(d, new Date(a, mes + 1, 0).getDate()));
+      let primeira = null;
+      if (dia && base) { primeira = dm(base.getFullYear(), base.getMonth(), dia); if (primeira < base) primeira = dm(base.getFullYear(), base.getMonth() + 1, dia); }
+      let k = 0; while (k < cum.length - 1 && cum[k] <= pago + 1) k++;
+      const saldo = Math.max(0, total - pago), quitado = saldo <= 0.01;
+      const venc = vencPend || (primeira ? dm(primeira.getFullYear(), primeira.getMonth() + k, dia) : null);
+      const iso = venc ? venc.getFullYear() + "-" + String(venc.getMonth() + 1).padStart(2, "0") + "-" + String(venc.getDate()).padStart(2, "0") : "";
+      return { n: valores.length, pagas: quitado ? valores.length : k, valor: Math.min(saldo, Math.round((cum[k] - pago) * 100) / 100), vencISO: iso };
+    }
+
     async function showBaixaReceipt(res, ped) {
       await _rcGetCatalog();
       const pedObj  = ped || currentDetailPed || {};
@@ -7119,7 +7164,7 @@
 
       // Histórico de baixas
       const historico  = (_baixasCache || []).filter(b => String(b["ID_Pedido"] || "") === String(idPed));
-      const pagas      = historico.filter(b => String(b["Status_Pagamento"] || "") !== "Pendente");
+      const pagas      = historico.filter(b => { const st = String(b["Status_Pagamento"] || ""); return st !== "Pendente" && st !== "Liquidado"; });
       const pendentes  = historico.filter(b => String(b["Status_Pagamento"] || "") === "Pendente");
       const totalPago  = pagas.reduce((s, b) => s + Number(b["Valor_Final_Recebido"] || 0), 0);
       const saldo      = Math.max(0, totalOrig - totalPago);
@@ -7127,9 +7172,11 @@
       const nPagas     = pagas.length;
       const nPend      = pendentes.length;
       const pct        = totalOrig > 0 ? Math.min(100, Math.round(totalPago / totalOrig * 100)) : 0;
-      const qtdParcAdmin = Number(pedObj["Qtd_Parcelas"] || pedObj["qtdParcelas"] || 0);
+      const plAdm = _rcPlano(pedObj, historico);
+      const qtdParcAdmin = plAdm ? plAdm.n : Number(pedObj["Qtd_Parcelas"] || pedObj["qtdParcelas"] || 0);
       const totalParcAdmin = qtdParcAdmin || (nPagas + nPend) || 0;
-      const valorParcelaAdmin = totalParcAdmin > 0 ? totalOrig / totalParcAdmin : 0;
+      const valorParcelaAdmin = plAdm ? plAdm.valor : (totalParcAdmin > 0 ? totalOrig / totalParcAdmin : 0);
+      const nParcPagas = plAdm ? plAdm.pagas : nPagas;
 
       const mkBaixaRow = (b, isPend, num) => {
         const vl  = Number(isPend ? (valorParcelaAdmin || b["Saldo_Restante"] || b["Valor_Original"] || 0) : (b["Valor_Final_Recebido"] || 0));
@@ -7166,7 +7213,7 @@
         desconto > 0 ? `Subtotal: ${fmt(subtotal)}\nDesconto: - ${fmt(desconto)}` : "",
         `💰 *Total do pedido: ${fmt(totalOrig)}*`,
         ``,
-        historico.length ? `📋 *Pagamentos (${nPagas} de ${nPagas+nPend}):*` : "",
+        historico.length ? `📋 *Pagamentos (${nParcPagas} de ${totalParcAdmin || nPagas+nPend}):*` : "",
         ...pagas.map((b,i) => `✅ ${i+1}. ${_rcDate(b["Data_Baixa_Efetiva"])} — ${fmt(b["Valor_Final_Recebido"])} (${b["Status_Pagamento"]})`),
         ...pendentes.map((b,i) => `⏳ ${nPagas+i+1}. Vence ${_rcDate(b["Proxima_Vencimento"])} — ${fmt(valorParcelaAdmin || b["Saldo_Restante"]||b["Valor_Original"]||0)} (Pendente)`),
         ``,
@@ -7232,22 +7279,22 @@
           </div>` : `<div style="padding:12px 16px;border-bottom:1px solid #1a2840;color:#f44336;font-size:12px">⚠️ Nenhum item registrado neste pedido</div>`}
 
           ${(totalParcAdmin > 1 || (nPagas + nPend) > 0) ? (() => {
-            const faltam2 = totalParcAdmin - nPagas;
-            const cor2 = quitado ? "#00e676" : nPagas > 0 ? "#00bcd4" : "#ffb74d";
-            const dots = Array.from({length: Math.min(totalParcAdmin, 12)}, (_,i) =>
-              `<div style="flex:1;height:8px;border-radius:2px;background:${i < nPagas ? "#00e676" : i === nPagas ? cor2 : "rgba(255,255,255,.15)"}"></div>`
+            const faltam2 = totalParcAdmin - nParcPagas;
+            const cor2 = quitado ? "#00e676" : nParcPagas > 0 ? "#00bcd4" : "#ffb74d";
+            const dots = Array.from({length: Math.min(totalParcAdmin, 24)}, (_,i) =>
+              `<div style="flex:1;height:8px;border-radius:2px;background:${i < nParcPagas ? "#00e676" : i === nParcPagas ? cor2 : "rgba(255,255,255,.15)"}"></div>`
             ).join("");
             const msgMotiv = quitado
               ? `🎉 Pedido totalmente quitado! Obrigado ${String(nome).split(" ")[0]}!`
               : pct >= 90 ? `🔥 Quase lá! Só mais ${faltam2} parcela${faltam2>1?"s":""}`
               : pct >= 50 ? `🎯 Na metade! Faltam ${faltam2} parcela${faltam2>1?"s":""}`
-              : pct >= 25 ? `💪 Você está indo bem! ${nPagas} de ${totalParcAdmin} pagas`
-              : nPagas > 0 ? `👏 Primeira parcela paga! Continue firme`
+              : pct >= 25 ? `💪 Você está indo bem! ${nParcPagas} de ${totalParcAdmin} pagas`
+              : nParcPagas > 0 ? `👏 Primeira parcela paga! Continue firme`
               : `📅 ${totalParcAdmin} parcela${totalParcAdmin>1?"s":""} a pagar`;
             return `<div style="padding:10px 16px;border-bottom:1px solid #1a2840;background:${quitado ? "rgba(0,230,118,.06)" : "rgba(0,188,212,.06)"}">
               <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
                 <span style="font-size:9px;font-weight:800;color:#8899aa;text-transform:uppercase;letter-spacing:1px">📦 PARCELAS</span>
-                <span style="font-size:12px;font-weight:800;color:${cor2}">${nPagas}${totalParcAdmin > 0 ? "/" + totalParcAdmin : ""} pagas${quitado ? " ✅" : faltam2 > 0 ? " · " + faltam2 + " restante" + (faltam2 > 1 ? "s" : "") : ""}</span>
+                <span style="font-size:12px;font-weight:800;color:${cor2}">${nParcPagas}${totalParcAdmin > 0 ? "/" + totalParcAdmin : ""} pagas${quitado ? " ✅" : faltam2 > 0 ? " · " + faltam2 + " restante" + (faltam2 > 1 ? "s" : "") : ""}</span>
               </div>
               ${totalParcAdmin > 1 ? `<div style="display:flex;gap:3px;margin-bottom:6px">${dots}</div>` : ""}
               <div style="display:flex;justify-content:space-between;font-size:10px;margin-bottom:6px">
@@ -7260,7 +7307,7 @@
           })() : ""}
           ${!quitado && pendentes.length ? (() => {
             const prox = pendentes[0];
-            const dtVenc = String(prox["Proxima_Vencimento"] || "").split("T")[0];
+            const dtVenc = (plAdm && plAdm.vencISO) || String(prox["Proxima_Vencimento"] || "").split("T")[0];
             let diasAte = null;
             try {
               const d = new Date(dtVenc);
