@@ -4708,6 +4708,8 @@
       const url = new URL(API);
       url.searchParams.set("action", action);
       url.searchParams.set("_t", Date.now()); // cache bust
+      // 03/10/2026: toda chamada leva o token do login (o GAS passou a exigir nas ações do painel)
+      if (TOKEN && params.token === undefined) params = Object.assign({ token: TOKEN }, params);
       Object.entries(params).forEach(([k, v]) => {
         if (v !== undefined && v !== null) url.searchParams.set(k, String(v));
       });
@@ -4716,7 +4718,7 @@
       try {
         const res = await fetch(url.toString(), { cache: "no-store", signal: ctrl.signal });
         if (!res.ok) throw new Error("HTTP " + res.status);
-        return await res.json();
+        return _gjSessao(action, await res.json());
       } catch (e) {
         throw new Error(e.name === "AbortError" ? "Timeout (20s) em " + action : e.message);
       } finally {
@@ -4726,13 +4728,24 @@
 
     // POST text/plain (dados sensíveis fora da query, que o GAS loga). action vai no body.
     async function apiPost(action, params = {}) {
+      if (TOKEN && params.token === undefined) params = Object.assign({ token: TOKEN }, params);
       const res = await fetch(API, {
         method: "POST",
         headers: { "Content-Type": "text/plain;charset=utf-8" },
         body: JSON.stringify(Object.assign({ action }, params)),
       });
       if (!res.ok) throw new Error("HTTP " + res.status);
-      return res.json();
+      return _gjSessao(action, await res.json());
+    }
+    // Login expirado (token do GAS vale 12h) → avisa e volta pra tela de senha, em vez de erro mudo.
+    let _gjExpirouAviso = false;
+    function _gjSessao(action, r) {
+      if (r && r.error === "Não autorizado" && TOKEN && !/Login$/.test(action) && !_gjExpirouAviso) {
+        _gjExpirouAviso = true;
+        try { toast("Sua sessão expirou — entre de novo 🔐", "err"); } catch (e) {}
+        setTimeout(() => { _gjExpirouAviso = false; try { logout(); } catch (e) { location.reload(); } }, 1500);
+      }
+      return r;
     }
 
     function fmt(v) { const n = Number(v); return "R$ " + (isNaN(n) ? "0,00" : n.toLocaleString("pt-BR", { minimumFractionDigits: 2 })); }
@@ -6667,7 +6680,7 @@
         const st  = b["Status_Pagamento"] || "";
         const dt  = _rcDate(isPend ? b["Proxima_Vencimento"] : b["Data_Baixa_Efetiva"]);
         const cor = isPend ? "var(--r)" : (st.includes("Atraso") ? "#ffb74d" : "var(--g)");
-        const num = isPend ? (nPagas + i + 1) : (i + 1);
+        const num = isPend ? ((plRes ? plRes.pagas : nPagas) + i + 1) : (i + 1);
         const vlPend = valorParcelaRes || Number(b["Saldo_Restante"] || b["Valor_Original"] || 0);
         return `<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid rgba(255,255,255,.04)">
           <div style="width:18px;height:18px;border-radius:50%;background:${cor}22;border:1px solid ${cor}44;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:800;color:${cor};flex-shrink:0">${num}</div>
@@ -7055,7 +7068,7 @@
 
     // 2026-10-18: plano fixo nas Observações ("21x de R$350,00 + 1x de R$250") — MESMA regra do GAS
     // (_cobPlano em gas/Cobrancas.js): valor por parcela, a última pelo que sobra, vencimento todo mês no mesmo dia.
-    // null = pedido sem plano → recibo segue a conta antiga.
+    // Sem plano mas parcelado (Qtd_Parcelas > 1) → mesma conta da aba Cobrar. null = pagamento único (conta antiga).
     function _rcDia(v) {
       const s = String(v || "").trim();
       let m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
@@ -7075,9 +7088,8 @@
         const q = +m[1], v = m[2].includes(",") ? Number(m[2].replace(/\./g, "").replace(",", ".")) : Number(m[2]);
         if (q > 0 && v > 0) for (let i = 0; i < q && valores.length <= 120; i++) valores.push(v);
       }
-      if (valores.length < 2 || valores.length > 120) return null;
       let acc = 0; const cum = valores.map(v => Math.round((acc += v) * 100) / 100);
-      if (Math.abs(acc - total) > 1) return null;
+      const temPlano = valores.length >= 2 && valores.length <= 120 && Math.abs(acc - total) <= 1;
       const bx = historico || [];
       const pago = bx.filter(b => { const st = String(b["Status_Pagamento"] || ""); return st !== "Pendente" && st !== "Liquidado"; })
         .reduce((s, b) => s + Math.max(0, Number(b["Valor_Final_Recebido"] || 0) - Number(b["Taxa_Aplicada_RS"] || 0)), 0);
@@ -7090,17 +7102,25 @@
       const dm = (a, mes, d) => new Date(a, mes, Math.min(d, new Date(a, mes + 1, 0).getDate()));
       let primeira = null;
       if (dia && base) { primeira = dm(base.getFullYear(), base.getMonth(), dia); if (primeira < base) primeira = dm(base.getFullYear(), base.getMonth() + 1, dia); }
-      let k = 0; while (k < cum.length - 1 && cum[k] <= pago + 1) k++;
       const saldo = Math.max(0, total - pago), quitado = saldo <= 0.01;
+      const isoDe = d => d ? d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0") : "";
+      if (!temPlano) {
+        // sem plano escrito: MESMA conta da aba Cobrar (_cobCalcular) — total ÷ N, parcela atual = o que falta dela
+        const n = Math.round(Number(ped["Qtd_Parcelas"] || ped.qtdParcelas || 0));
+        if (!(n > 1)) return null;
+        const pv = total / n, k = Math.min(n - 1, Math.floor((pago + 1) / pv));
+        const valor = k >= n - 1 ? saldo : Math.min(saldo, Math.round(((k + 1) * pv - pago) * 100) / 100);
+        return { n, pagas: quitado ? n : k, valor: Math.round(valor * 100) / 100, vencISO: isoDe(vencPend) };
+      }
+      let k = 0; while (k < cum.length - 1 && cum[k] <= pago + 1) k++;
       const venc = vencPend || (primeira ? dm(primeira.getFullYear(), primeira.getMonth() + k, dia) : null);
-      const iso = venc ? venc.getFullYear() + "-" + String(venc.getMonth() + 1).padStart(2, "0") + "-" + String(venc.getDate()).padStart(2, "0") : "";
-      return { n: valores.length, pagas: quitado ? valores.length : k, valor: Math.min(saldo, Math.round((cum[k] - pago) * 100) / 100), vencISO: iso };
+      return { n: valores.length, pagas: quitado ? valores.length : k, valor: Math.min(saldo, Math.round((cum[k] - pago) * 100) / 100), vencISO: isoDe(venc) };
     }
 
     async function showBaixaReceipt(res, ped) {
       await _rcGetCatalog();
       const pedObj  = ped || currentDetailPed || {};
-      const tel     = ((pedObj["Telefone"]) || (res && res.telefone) || "").replace(/\D/g, "");
+      const tel     = String((pedObj["Telefone"]) || (res && res.telefone) || "").replace(/\D/g, "");   // telefone pode vir número
       const nome    = pedObj["Nome Cliente"] || (res && res.nomeCliente) || "—";
       const idPed   = (res && res.idPedido) || pedObj["ID Pedido"] || "—";
       const totalOrig = Number(pedObj["Total (R$)"] || (res && res.valorOriginal) || (res && res.valorFinal) || 0);
@@ -7197,7 +7217,7 @@
       };
 
       const baixasHtml = historico.length
-        ? [...pagas.map((b,i) => mkBaixaRow(b, false, i+1)), ...pendentes.map((b,i) => mkBaixaRow(b, true, nPagas+i+1))].join("")
+        ? [...pagas.map((b,i) => mkBaixaRow(b, false, i+1)), ...pendentes.map((b,i) => mkBaixaRow(b, true, nParcPagas+i+1))].join("")
         : `<div style="font-size:12px;color:#8899aa;padding:6px 0">Nenhum pagamento registrado</div>`;
 
       // WPP message
@@ -7215,7 +7235,7 @@
         ``,
         historico.length ? `📋 *Pagamentos (${nParcPagas} de ${totalParcAdmin || nPagas+nPend}):*` : "",
         ...pagas.map((b,i) => `✅ ${i+1}. ${_rcDate(b["Data_Baixa_Efetiva"])} — ${fmt(b["Valor_Final_Recebido"])} (${b["Status_Pagamento"]})`),
-        ...pendentes.map((b,i) => `⏳ ${nPagas+i+1}. Vence ${_rcDate(b["Proxima_Vencimento"])} — ${fmt(valorParcelaAdmin || b["Saldo_Restante"]||b["Valor_Original"]||0)} (Pendente)`),
+        ...pendentes.map((b,i) => `⏳ ${nParcPagas+i+1}. Vence ${_rcDate(b["Proxima_Vencimento"])} — ${fmt(valorParcelaAdmin || b["Saldo_Restante"]||b["Valor_Original"]||0)} (Pendente)`),
         ``,
         `✅ *Total pago: ${fmt(totalPago)}*`,
         quitado ? `✅ *QUITADO*` : `⚠️ *Saldo devedor: ${fmt(saldo)}*`,
@@ -11839,7 +11859,8 @@
           '<button class="cb-b cb-b-w" onclick="cbAct(\'cobrar\',this)">💬 Cobrar</button>' +
           '<button class="cb-b cb-b-g" onclick="cbAct(\'recebi\',this)">✅ Recebi</button>' +
           '<button class="cb-b" onclick="cbAct(\'adiar\',this)">📅 Adiar</button>' +
-          '<button class="cb-b cb-b-m" onclick="cbAct(\'mais\',this)">⋯</button></div></div>';
+          '<button class="cb-b cb-b-m" onclick="cbAct(\'mais\',this)">⋯</button>' +
+          '<button class="cb-b cb-b-m" title="Excluir pedido / cobrança" style="color:var(--r)" onclick="cbAct(\'excluir\',this)">🗑️</button></div></div>';
       }).join("");
     }
     function cbAct(a, el) {
@@ -11849,6 +11870,7 @@
       if (a === "cobrar") cbSheetCobrar(c);
       else if (a === "recebi") cbSheetRecebi(c);
       else if (a === "adiar") cbSheetAdiar(c);
+      else if (a === "excluir") cbSheetExcluir(c);
       else cbSheetMais(c);
     }
     function cbDeepLink() {
@@ -12017,7 +12039,31 @@
         '<button class="cb-b" onclick="cbCopiar(cbMsg(cbCur),\'Mensagem copiada ✅\');cbFechar()">📋 Copiar mensagem de cobrança</button>' +
         '<button class="cb-b" onclick="cbCopiar(CB_PIX.tel,\'Número do Pix copiado ✅\');cbFechar()">💠 Copiar nº do Pix (' + CB_PIX.telFmt + ')</button>' +
         '<button class="cb-b" onclick="cbCopiar(cbPixValor(cbQuanto(cbCur)),\'Valor copiado ✅\');cbFechar()">💰 Copiar valor (' + fmt(cbQuanto(c)) + ')</button>' +
-        (c.telefone ? '<a class="cb-b" href="tel:+55' + cbEsc(c.telefone) + '">📞 Ligar</a>' : "") + '</div>');
+        (c.telefone ? '<a class="cb-b" href="tel:+55' + cbEsc(c.telefone) + '">📞 Ligar</a>' : "") +
+        '<button class="cb-b" style="color:var(--r);border-color:rgba(244,67,54,.35)" onclick="cbSheetExcluir(cbCur)">🗑️ Excluir pedido / cobrança</button>' + '</div>');
+    }
+    // 🗑️ Excluir (03/10/2026) — marca o pedido como "Deletado" (recuperável); some da Cobrar e dos relatórios.
+    function cbSheetExcluir(c) {
+      const motivos = ["Pedido de teste", "Duplicado", "Lançado errado", "Cliente desistiu"];
+      cbSheet('<div class="cb-sh-t">🗑️ Excluir pedido #' + cbEsc(c.idPedido) + '?</div>' +
+        '<div class="cb-resumo">' + cbEsc(c.nome) + ' · ' + fmt(c.saldo || c.valor) + ' em aberto</div>' +
+        '<div class="cb-warn">O pedido sai da cobrança e dos relatórios (fica marcado como Deletado e pode ser recuperado na planilha). Use para teste, duplicado ou lançamento errado.</div>' +
+        '<div class="cb-chips">' + motivos.map(m => '<button class="cb-chip" onclick="document.getElementById(\'cbExMotivo\').value=this.textContent">' + m + '</button>').join("") + '</div>' +
+        '<input class="fi cb-inp" id="cbExMotivo" type="text" placeholder="Motivo (obrigatório)" maxlength="200">' +
+        '<button class="cb-ok" id="cbExOk" style="background:var(--r)" onclick="cbExcluirConfirmar()">🗑️ Excluir de vez</button>' +
+        '<div class="cb-sh-row"><button class="cb-b" onclick="cbFechar()">Cancelar</button></div>');
+    }
+    async function cbExcluirConfirmar() {
+      const motivo = (document.getElementById("cbExMotivo").value || "").trim();
+      if (!motivo) { toast("Escolha ou escreva o motivo", "err"); return; }
+      const ok = document.getElementById("cbExOk"); ok.disabled = true; ok.textContent = "⏳ Excluindo...";
+      try {
+        const r = await apiPost("excluirCobranca", { token: TOKEN, idPedido: cbCur.idPedido, motivo });
+        if (!r || !r.ok) { toast((r && r.error) || "Não consegui excluir", "err"); ok.disabled = false; ok.textContent = "🗑️ Excluir de vez"; return; }
+        cbFechar();
+        toast("Pedido #" + cbCur.idPedido + " excluído da cobrança 🗑️", "ok");
+        loadCobrar(false).catch(() => {});
+      } catch (e) { toast("Erro de conexão", "err"); ok.disabled = false; ok.textContent = "🗑️ Excluir de vez"; }
     }
     async function cbVerPedido() {
       try {

@@ -664,6 +664,10 @@ const TAXA_DIARIA = 0.33;
 async function apiGet(action, params = {}) {
   const url = new URL(GAS_URL);
   url.searchParams.set("action", action);
+  // 03/10/2026: token do login em toda chamada (o GAS passou a exigir nas ações do painel)
+  if (params.token === undefined && action !== "adminLogin") {
+    try { const s = getSession(); if (s && s.token && s.token !== "ok") url.searchParams.set("token", s.token); } catch (e) {}
+  }
   Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v));
   // E1.2: identifica o operador em toda ação (vai pra auditoria Log_Acoes)
   if (!params.operador) {
@@ -674,7 +678,11 @@ async function apiGet(action, params = {}) {
   try {
     const r = await fetch(url.toString(), { signal: ctrl.signal });
     if (!r.ok) throw new Error("HTTP " + r.status);
-    return await r.json();
+    const j = await r.json();
+    if (j && j.error === "Não autorizado" && action !== "adminLogin") {  // sessão de 12h expirou
+      alert("Sua sessão expirou — entre de novo 🔐"); logout();
+    }
+    return j;
   } catch (e) {
     throw new Error(e.name === "AbortError" ? "Timeout (20s) em " + action : e.message);
   } finally {
@@ -2196,7 +2204,7 @@ function _rcProdImg(nome) {
 
     // 2026-10-18: plano fixo nas Observações ("21x de R$350,00 + 1x de R$250") — MESMA regra do GAS
     // (_cobPlano em gas/Cobrancas.js): valor por parcela, a última pelo que sobra, vencimento todo mês no mesmo dia.
-    // null = pedido sem plano → recibo segue a conta antiga.
+    // Sem plano mas parcelado (Qtd_Parcelas > 1) → mesma conta da aba Cobrar. null = pagamento único (conta antiga).
     function _rcDia(v) {
       const s = String(v || "").trim();
       let m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
@@ -2216,9 +2224,8 @@ function _rcProdImg(nome) {
         const q = +m[1], v = m[2].includes(",") ? Number(m[2].replace(/\./g, "").replace(",", ".")) : Number(m[2]);
         if (q > 0 && v > 0) for (let i = 0; i < q && valores.length <= 120; i++) valores.push(v);
       }
-      if (valores.length < 2 || valores.length > 120) return null;
       let acc = 0; const cum = valores.map(v => Math.round((acc += v) * 100) / 100);
-      if (Math.abs(acc - total) > 1) return null;
+      const temPlano = valores.length >= 2 && valores.length <= 120 && Math.abs(acc - total) <= 1;
       const bx = historico || [];
       const pago = bx.filter(b => { const st = String(b["Status_Pagamento"] || ""); return st !== "Pendente" && st !== "Liquidado"; })
         .reduce((s, b) => s + Math.max(0, Number(b["Valor_Final_Recebido"] || 0) - Number(b["Taxa_Aplicada_RS"] || 0)), 0);
@@ -2231,11 +2238,19 @@ function _rcProdImg(nome) {
       const dm = (a, mes, d) => new Date(a, mes, Math.min(d, new Date(a, mes + 1, 0).getDate()));
       let primeira = null;
       if (dia && base) { primeira = dm(base.getFullYear(), base.getMonth(), dia); if (primeira < base) primeira = dm(base.getFullYear(), base.getMonth() + 1, dia); }
-      let k = 0; while (k < cum.length - 1 && cum[k] <= pago + 1) k++;
       const saldo = Math.max(0, total - pago), quitado = saldo <= 0.01;
+      const isoDe = d => d ? d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0") : "";
+      if (!temPlano) {
+        // sem plano escrito: MESMA conta da aba Cobrar (_cobCalcular) — total ÷ N, parcela atual = o que falta dela
+        const n = Math.round(Number(ped["Qtd_Parcelas"] || ped.qtdParcelas || 0));
+        if (!(n > 1)) return null;
+        const pv = total / n, k = Math.min(n - 1, Math.floor((pago + 1) / pv));
+        const valor = k >= n - 1 ? saldo : Math.min(saldo, Math.round(((k + 1) * pv - pago) * 100) / 100);
+        return { n, pagas: quitado ? n : k, valor: Math.round(valor * 100) / 100, vencISO: isoDe(vencPend) };
+      }
+      let k = 0; while (k < cum.length - 1 && cum[k] <= pago + 1) k++;
       const venc = vencPend || (primeira ? dm(primeira.getFullYear(), primeira.getMonth() + k, dia) : null);
-      const iso = venc ? venc.getFullYear() + "-" + String(venc.getMonth() + 1).padStart(2, "0") + "-" + String(venc.getDate()).padStart(2, "0") : "";
-      return { n: valores.length, pagas: quitado ? valores.length : k, valor: Math.min(saldo, Math.round((cum[k] - pago) * 100) / 100), vencISO: iso };
+      return { n: valores.length, pagas: quitado ? valores.length : k, valor: Math.min(saldo, Math.round((cum[k] - pago) * 100) / 100), vencISO: isoDe(venc) };
     }
 
 async function showRecibo(pedId) {
@@ -2320,9 +2335,11 @@ async function showRecibo(pedId) {
     const cor = isPend ? "#f44336" : (isAtrasado ? "#ffb74d" : st.includes("Antecip") ? "#ab47bc" : "#00e676");
     const icon = isPend ? "⏳" : isAtrasado ? "⚠️" : st.includes("Antecip") ? "⚡" : "✅";
     const stLabel = isPend ? "A pagar" : st.replace("Atrasado ", "").replace("SEM Taxa","s/ juros").replace("COM Taxa","c/ juros");
-    const parcLabel = totalParc > 1 ? `Parc. ${num}/${totalParc}` : (isPend ? "A pagar" : "Pagamento");
+    // pagamento parcial (nº de pagamentos ≠ nº de parcelas cobertas) → "Pgto. n", não "Parc. n/N"
+    const ehParc = isPend || !plRc || plRc.pagas === nPagas;
+    const parcLabel = totalParc > 1 ? (ehParc ? `Parc. ${num}/${totalParc}` : `Pgto. ${num}`) : (isPend ? "A pagar" : "Pagamento");
     return `<div style="display:flex;align-items:flex-start;gap:8px;padding:7px 0;border-bottom:1px solid rgba(255,255,255,.04)">
-      <div style="min-width:28px;height:22px;border-radius:6px;background:${cor}22;border:1.5px solid ${cor}55;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:800;color:${cor};flex-shrink:0;padding:0 3px">${totalParc > 1 ? `${num}/${totalParc}` : num}</div>
+      <div style="min-width:28px;height:22px;border-radius:6px;background:${cor}22;border:1.5px solid ${cor}55;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:800;color:${cor};flex-shrink:0;padding:0 3px">${totalParc > 1 && ehParc ? `${num}/${totalParc}` : num}</div>
       <div style="flex:1;min-width:0">
         <div style="font-size:11px;font-weight:700;color:${cor}">${icon} ${isPend ? "Vence " : "Pago "}${dt}</div>
         <div style="font-size:10px;color:#8899aa;margin-top:1px">${parcLabel} · ${stLabel}${taxa > 0 ? ` · Juros: ${fmt(taxa)}` : ""}</div>
@@ -2333,7 +2350,7 @@ async function showRecibo(pedId) {
       </div>
     </div>`;
   };
-  const bxHtml = [...pagas.map((b,i)=>mkBxRow(b,false,i+1)), ...pendentes.map((b,i)=>mkBxRow(b,true,nPagas+i+1))].join("") ||
+  const bxHtml = [...pagas.map((b,i)=>mkBxRow(b,false,i+1)), ...pendentes.map((b,i)=>mkBxRow(b,true,nParcPagas+i+1))].join("") ||
     `<div style="font-size:12px;color:#8899aa;padding:8px 0;text-align:center">Sem histórico de pagamentos</div>`;
 
   // ── WPP mensagem ──
@@ -2355,13 +2372,13 @@ async function showRecibo(pedId) {
   } catch { itensRaw.split("|").filter(Boolean).forEach(s => wppLines.push(`  • ${s.trim()}`)); }
   wppLines.push("", desc > 0 ? `Subtotal: ${fmt(sub)}\n🏷️ Desconto: — ${fmt(desc)}` : null, `💰 *Total: ${fmt(total)}*`);
   if (pagas.length || pendentes.length) {
-    const parcLabel = (n) => totalParc > 1 ? `Parc. ${n}/${totalParc}` : `Pgto. ${n}`;
+    const parcLabel = (n, pend) => totalParc > 1 && (pend || !plRc || plRc.pagas === nPagas) ? `Parc. ${n}/${totalParc}` : `Pgto. ${n}`;
     wppLines.push("", "─────────────────────", `💳 *Pagamentos (${nParcPagas}/${totalParc || nPagas + nPend}):*`);
     pagas.forEach((b,i) => {
       const taxa = Number(b["Taxa_Aplicada_RS"]||0);
       wppLines.push(`✅ ${parcLabel(i+1)} — ${_rcDate(b["Data_Baixa_Efetiva"])} — ${fmt(Number(b["Valor_Final_Recebido"]||0))}${taxa > 0 ? ` (c/ juros ${fmt(taxa)})` : ""}`);
     });
-    pendentes.forEach((b,i) => wppLines.push(`⏳ ${parcLabel(nPagas+i+1)} — Vence ${_rcDate(b["Proxima_Vencimento"])} — ${fmt(Number(valorParcelaRc || b["Saldo_Restante"]||b["Valor_Original"]||0))}`));
+    pendentes.forEach((b,i) => wppLines.push(`⏳ ${parcLabel(nParcPagas+i+1, true)} — Vence ${_rcDate(b["Proxima_Vencimento"])} — ${fmt(Number(valorParcelaRc || b["Saldo_Restante"]||b["Valor_Original"]||0))}`));
     wppLines.push("", `✅ *Total pago: ${fmt(totalPago)}*`);
     if (totalJuros > 0) wppLines.push(`⚠️ Juros totais: ${fmt(totalJuros)}`);
     wppLines.push(quitado ? "🎉 *QUITADO ✅*" : `⚠️ *Saldo devedor: ${fmt(saldo)}*`);
