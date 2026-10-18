@@ -2194,6 +2194,50 @@ function _rcProdImg(nome) {
   return f ? cldOpt(String(f["Imagem 1 (URL)"] || f["Imagem URL"] || "").trim(), 150) : "";
 }
 
+    // 2026-10-18: plano fixo nas Observações ("21x de R$350,00 + 1x de R$250") — MESMA regra do GAS
+    // (_cobPlano em gas/Cobrancas.js): valor por parcela, a última pelo que sobra, vencimento todo mês no mesmo dia.
+    // null = pedido sem plano → recibo segue a conta antiga.
+    function _rcDia(v) {
+      const s = String(v || "").trim();
+      let m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+      if (m) return new Date(+m[3], +m[2] - 1, +m[1]);
+      m = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+      if (!m) return null;
+      const d = new Date(s);
+      return isNaN(d) ? new Date(+m[1], +m[2] - 1, +m[3]) : new Date(d.getFullYear(), d.getMonth(), d.getDate());
+    }
+    function _rcPlano(ped, historico) {
+      ped = ped || {};
+      const total = Number(ped["Total (R$)"] || ped.total || 0);
+      const obs = String(ped["Observações"] || ped.obs || "");
+      const re = /(\d{1,3})\s*x\s*(?:de\s*)?R?\$?\s*(\d{1,3}(?:\.\d{3})*(?:,\d{1,2})?|\d+(?:\.\d{1,2})?)/gi;
+      const valores = []; let m;
+      while ((m = re.exec(obs))) {
+        const q = +m[1], v = m[2].includes(",") ? Number(m[2].replace(/\./g, "").replace(",", ".")) : Number(m[2]);
+        if (q > 0 && v > 0) for (let i = 0; i < q && valores.length <= 120; i++) valores.push(v);
+      }
+      if (valores.length < 2 || valores.length > 120) return null;
+      let acc = 0; const cum = valores.map(v => Math.round((acc += v) * 100) / 100);
+      if (Math.abs(acc - total) > 1) return null;
+      const bx = historico || [];
+      const pago = bx.filter(b => { const st = String(b["Status_Pagamento"] || ""); return st !== "Pendente" && st !== "Liquidado"; })
+        .reduce((s, b) => s + Math.max(0, Number(b["Valor_Final_Recebido"] || 0) - Number(b["Taxa_Aplicada_RS"] || 0)), 0);
+      const pend = bx.filter(b => String(b["Status_Pagamento"] || "") === "Pendente")
+        .sort((a, b) => String(b["ID_Baixa"] || "").localeCompare(String(a["ID_Baixa"] || "")))[0];
+      const vencPend = pend ? _rcDia(pend["Proxima_Vencimento"]) : null;
+      const dv = _rcDia(ped["Data_Vencimento"]);
+      const dia = dv ? dv.getDate() : (vencPend ? vencPend.getDate() : 0);
+      const base = _rcDia(ped["Data/Hora"]) || _rcDia(ped["Data_Criacao"]);
+      const dm = (a, mes, d) => new Date(a, mes, Math.min(d, new Date(a, mes + 1, 0).getDate()));
+      let primeira = null;
+      if (dia && base) { primeira = dm(base.getFullYear(), base.getMonth(), dia); if (primeira < base) primeira = dm(base.getFullYear(), base.getMonth() + 1, dia); }
+      let k = 0; while (k < cum.length - 1 && cum[k] <= pago + 1) k++;
+      const saldo = Math.max(0, total - pago), quitado = saldo <= 0.01;
+      const venc = vencPend || (primeira ? dm(primeira.getFullYear(), primeira.getMonth() + k, dia) : null);
+      const iso = venc ? venc.getFullYear() + "-" + String(venc.getMonth() + 1).padStart(2, "0") + "-" + String(venc.getDate()).padStart(2, "0") : "";
+      return { n: valores.length, pagas: quitado ? valores.length : k, valor: Math.min(saldo, Math.round((cum[k] - pago) * 100) / 100), vencISO: iso };
+    }
+
 async function showRecibo(pedId) {
   // Catálogo completo (inclui inativo) — nunca confiar só no allProds do boot (só ativos)
   await _rcGetCatalog();
@@ -2263,8 +2307,10 @@ async function showRecibo(pedId) {
   const totalJuros = pagas.reduce((s, b) => s + Number(b["Taxa_Aplicada_RS"] || 0), 0);
   const abatimento = Math.max(0, (sub + totalJuros) - total - totalPago + saldo);
 
-  const totalParc = qtdParc || (nPagas + nPend) || 0;
-  const valorParcelaRc = totalParc > 0 ? total / totalParc : 0;
+  const plRc = _rcPlano(p, allBaixas.filter(b => String(b["ID_Pedido"] || "") === String(id)));
+  const totalParc = (plRc && plRc.n) || qtdParc || (nPagas + nPend) || 0;
+  const valorParcelaRc = plRc ? plRc.valor : (totalParc > 0 ? total / totalParc : 0);
+  const nParcPagas = plRc ? plRc.pagas : nPagas;
   const mkBxRow = (b, isPend, num) => {
     const vl = Number(isPend ? (valorParcelaRc || b["Saldo_Restante"] || b["Valor_Original"] || 0) : (b["Valor_Final_Recebido"] || 0));
     const st = b["Status_Pagamento"] || "";
@@ -2310,7 +2356,7 @@ async function showRecibo(pedId) {
   wppLines.push("", desc > 0 ? `Subtotal: ${fmt(sub)}\n🏷️ Desconto: — ${fmt(desc)}` : null, `💰 *Total: ${fmt(total)}*`);
   if (pagas.length || pendentes.length) {
     const parcLabel = (n) => totalParc > 1 ? `Parc. ${n}/${totalParc}` : `Pgto. ${n}`;
-    wppLines.push("", "─────────────────────", `💳 *Pagamentos (${nPagas}/${totalParc || nPagas + nPend}):*`);
+    wppLines.push("", "─────────────────────", `💳 *Pagamentos (${nParcPagas}/${totalParc || nPagas + nPend}):*`);
     pagas.forEach((b,i) => {
       const taxa = Number(b["Taxa_Aplicada_RS"]||0);
       wppLines.push(`✅ ${parcLabel(i+1)} — ${_rcDate(b["Data_Baixa_Efetiva"])} — ${fmt(Number(b["Valor_Final_Recebido"]||0))}${taxa > 0 ? ` (c/ juros ${fmt(taxa)})` : ""}`);
@@ -2331,16 +2377,16 @@ async function showRecibo(pedId) {
 
   const _msgMotivRc = quitado
     ? `🎉 Pedido totalmente quitado! Obrigado ${String(nome).split(" ")[0]}!`
-    : pct >= 90 ? `🔥 Quase lá! Só mais ${totalParc - nPagas} parcela${(totalParc-nPagas)>1?"s":""}`
-    : pct >= 50 ? `🎯 Na metade! Faltam ${totalParc - nPagas} parcela${(totalParc-nPagas)>1?"s":""}`
-    : pct >= 25 ? `💪 Você está indo bem! ${nPagas} de ${totalParc} pagas`
-    : nPagas > 0 ? `👏 Primeira parcela paga! Continue firme`
+    : pct >= 90 ? `🔥 Quase lá! Só mais ${totalParc - nParcPagas} parcela${(totalParc-nParcPagas)>1?"s":""}`
+    : pct >= 50 ? `🎯 Na metade! Faltam ${totalParc - nParcPagas} parcela${(totalParc-nParcPagas)>1?"s":""}`
+    : pct >= 25 ? `💪 Você está indo bem! ${nParcPagas} de ${totalParc} pagas`
+    : nParcPagas > 0 ? `👏 Primeira parcela paga! Continue firme`
     : totalParc > 1 ? `📅 ${totalParc} parcelas a pagar` : "";
 
   let _proxPagHtml = "";
   if (!quitado && pendentes.length) {
     const _prox = pendentes[0];
-    const _dtVenc = String(_prox["Proxima_Vencimento"] || "").split("T")[0];
+    const _dtVenc = (plRc && plRc.vencISO) || String(_prox["Proxima_Vencimento"] || "").split("T")[0];
     let _diasAte = null;
     try { const _d = new Date(_dtVenc); if (!isNaN(_d)) _diasAte = Math.ceil((_d - new Date()) / 86400000); } catch(e) {}
     const _dtBR = _dtVenc.split("-").reverse().join("/");
