@@ -4612,7 +4612,24 @@
     // 2026-08-28: porta 3100 nunca foi alcançável por Funnel público de verdade (só 443/8443/10000
     // são autorizados) — migrado pra /img sob a 8443, mesma porta do Nuvário (path-based via tailscale serve)
     const OPENINARY_URL = "https://servidor-1.tailc513c6.ts.net:8443/img";
-    const OPENINARY_KEY = "FeVbDJnaPgaGrtLuNUGcFPgLDFRudXIoDUVtHSItxSPMYTKyfiYHZCpsSOvAZcXz";
+    // 2026-11-14: a chave de upload NÃO fica mais no código — esta página é pública no GitHub Pages.
+    // openinaryUpload() pede a chave 1 vez e guarda só neste aparelho (localStorage).
+    async function openinaryUpload(file, folder) {
+      let key = localStorage.getItem("gj_openinary_key") || "";
+      if (!key) {
+        key = (prompt("Cole a chave de upload de imagens. Só será pedida uma vez neste aparelho.") || "").trim();
+        if (!key) throw new Error("Chave de upload não informada");
+      }
+      const fd = new FormData();
+      fd.append("files", file);
+      fd.append("folder", folder);
+      const r = await fetch(`${OPENINARY_URL}/api/upload`, { method: "POST", headers: { "Authorization": `Bearer ${key}` }, body: fd });
+      if (r.status === 401 || r.status === 403) { localStorage.removeItem("gj_openinary_key"); throw new Error("Chave de upload recusada"); }
+      const data = await r.json().catch(() => ({}));
+      if (!r.ok || !data.success) throw new Error(data.error || "Openinary erro " + r.status);
+      localStorage.setItem("gj_openinary_key", key);
+      return `${OPENINARY_URL}${data.files[0].url}`;
+    }
     const SITE_URL = _cfgVal(typeof CFG_SITE_URL !== "undefined" ? CFG_SITE_URL : "");
     function _shareBase() {
       if (SITE_URL) return SITE_URL.replace(/\/?$/, "/");
@@ -5851,19 +5868,7 @@
     function closeM() { document.getElementById("moverlay").classList.add("hidden"); document.body.style.overflow = ""; }
 
     async function uploadCloud(file) {
-      if (OPENINARY_URL && OPENINARY_KEY) {
-        const fd = new FormData();
-        fd.append("files", file);
-        fd.append("folder", "gjstore/admin");
-        const r = await fetch(`${OPENINARY_URL}/api/upload`, {
-          method: "POST",
-          headers: { "Authorization": `Bearer ${OPENINARY_KEY}` },
-          body: fd
-        });
-        const data = await r.json();
-        if (!r.ok || !data.success) throw new Error(data.error || "Openinary erro " + r.status);
-        return `${OPENINARY_URL}${data.files[0].url}`;
-      }
+      if (OPENINARY_URL) return openinaryUpload(file, "gjstore/admin");
       if (!CLOUDINARY_CLOUD || !CLOUDINARY_PRESET) {
         return new Promise(res => { const r = new FileReader(); r.onload = e => res(e.target.result); r.readAsDataURL(file); });
       }
@@ -11175,18 +11180,8 @@
       prev.innerHTML = "⏳";
       try {
         let url;
-        if (OPENINARY_URL && OPENINARY_KEY) {
-          const fd = new FormData();
-          fd.append("files", file);
-          fd.append("folder", "gjstore/admin/operadores");
-          const res = await fetch(`${OPENINARY_URL}/api/upload`, {
-            method: "POST",
-            headers: { "Authorization": `Bearer ${OPENINARY_KEY}` },
-            body: fd
-          });
-          const data = await res.json();
-          if (!data.success) throw new Error(data.error || "Openinary erro");
-          url = `${OPENINARY_URL}${data.files[0].url}`;
+        if (OPENINARY_URL) {
+          url = await openinaryUpload(file, "gjstore/admin/operadores");
         } else {
           const fd = new FormData();
           fd.append("file", file);
