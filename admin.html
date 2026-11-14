@@ -3797,6 +3797,17 @@
           <input class="fi" id="abBusca" placeholder="Buscar produto por nome..." oninput="abBuscar(this.value)" autocomplete="off">
           <div id="abResultados" style="max-height:260px;overflow:auto;margin-top:4px"></div>
         </div>
+        <div id="abMidiaBox" style="display:none;margin-top:12px">
+          <label class="fl">Foto ou vídeo no card</label>
+          <div id="abMidiaOpts" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center"></div>
+          <div style="margin-top:8px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+            <label class="addbtn" style="cursor:pointer;font-size:12px;padding:6px 12px;display:inline-block">📤 Enviar foto ou vídeo
+              <input type="file" id="abUpload" accept="image/*,video/*" style="display:none" onchange="abEnviar(this)">
+            </label>
+            <span id="abUpStatus" style="font-size:11px;color:var(--muted)"></span>
+          </div>
+          <div style="font-size:11px;color:var(--muted);margin-top:6px;line-height:1.5">Vídeo: mp4 curto (até 10 s e 3 MB). Toca mudo e em loop dentro do card. Com internet fraca, a loja mostra a foto.</div>
+        </div>
         <button class="savebtn" id="abSalvarBtn" style="width:100%;margin-top:8px" onclick="abSalvar()">💾 Salvar escolha</button>
         <button class="addbtn" style="width:100%;margin-top:8px;background:var(--d3);color:var(--fg)" onclick="abEscolher('')">Retirar escolha (automático)</button>
       </div>
@@ -3818,7 +3829,7 @@
 
       <div style="background:var(--d2);border:1px solid var(--border);border-radius:14px;padding:14px;margin-bottom:14px">
         <div style="font-family:var(--H);font-weight:800;font-size:14px">4. Produtos em destaque</div>
-        <div style="font-size:12px;color:var(--muted);margin:3px 0 10px;line-height:1.5">Produtos marcados "Destaque? Sim". Aparecem com selo e na bolinha "Destaques" das Novidades (até 10).</div>
+        <div style="font-size:12px;color:var(--muted);margin:3px 0 10px;line-height:1.5">Produtos marcados "Destaque? Sim". Aparecem na seção "Em destaque" da home (até 10), com selo nos cards e na bolinha "Destaques" das Novidades.</div>
         <div id="vtStar"></div>
         <input class="fi" id="vtBuscaStar" placeholder="+ Adicionar: buscar produto..." oninput="vtBuscar('star',this.value)" autocomplete="off" style="margin-top:8px">
         <div id="vtResStar" style="max-height:220px;overflow:auto;margin-top:4px"></div>
@@ -5120,7 +5131,7 @@
     }
 
     // ── PRODUTO DA ABERTURA ── grava o ID na Config (PRODUTO_ABERTURA); "AUTO" = a loja escolhe sozinha
-    let abSel = "", abSalvo = "", abProds = [];
+    let abSel = "", abSalvo = "", abProds = [], abMidia = "AUTO", abMidiaSalva = "AUTO";
     const abEsc = s => String(s == null ? "" : s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
     const abNome = p => p["Nome do Produto"] || p["Nome"] || "";
     const abLinha = p => {
@@ -5139,16 +5150,51 @@
         vtDests = (rd && rd.destaques) || [];
         const v = String(((rc && rc.config) || {}).PRODUTO_ABERTURA || "").trim();
         abSel = abSalvo = v === "AUTO" ? "" : v;
+        abMidia = abMidiaSalva = String(((rc && rc.config) || {}).ABERTURA_MIDIA || "").trim() || "AUTO";
       } catch (e) { toast("Erro ao carregar", "err"); }
       abPinta(); vtPinta();
     }
     function abPinta() {
       const p = abSel ? abProds.find(x => String(x["ID"]) === abSel) : null;
-      const pend = abSel !== abSalvo ? `<div style="font-size:11px;font-weight:700;color:var(--o);margin-top:8px">Ainda não salvo</div>` : "";
-      document.getElementById("abAtual").innerHTML = `<div style="font-size:11px;font-weight:700;color:var(--muted);margin-bottom:8px">${abSel === abSalvo ? "Escolha salva" : "Vai ficar assim"}</div>` + (
+      const pend = (abSel !== abSalvo || abMidia !== abMidiaSalva) ? `<div style="font-size:11px;font-weight:700;color:var(--o);margin-top:8px">Ainda não salvo</div>` : "";
+      document.getElementById("abAtual").innerHTML = `<div style="font-size:11px;font-weight:700;color:var(--muted);margin-bottom:8px">${abSel === abSalvo && abMidia === abMidiaSalva ? "Escolha salva" : "Vai ficar assim"}</div>` + (
         !abSel ? `<div style="font-size:13px;font-weight:600">Automático</div><div style="font-size:12px;color:var(--muted);margin-top:2px">A loja escolhe o primeiro produto com 10 parcelas ou mais e com estoque.</div>`
-        : p ? `<div style="display:flex;align-items:center;gap:10px">${abLinha(p)}</div>`
+        : p ? `<div style="display:flex;align-items:center;gap:10px">${abLinha(p)}</div><div style="font-size:11px;color:var(--c);margin-top:6px">No card: ${abEsc(abMidiaRotulo(abMidia))}</div>`
         : `<div style="font-size:13px;font-weight:600">Produto ${abEsc(abSel)}</div><div style="font-size:12px;color:var(--o);margin-top:2px">Não está entre os produtos ativos. A loja usa o automático até você escolher outro.</div>`) + pend;
+      abMidiaPinta();
+    }
+    const abEhVideo = u => /\.(mp4|webm|mov)(\?|$)/i.test(u || "");
+    function abMidiaRotulo(m) {
+      if (m === "AUTO" || m === "foto:0") return "foto 1 do produto";
+      if (m.startsWith("foto:")) return `foto ${Number(m.slice(5)) + 1} do produto`;
+      if (m === "video:produto") return "vídeo do produto";
+      if (m.startsWith("url:")) return abEhVideo(m.slice(4)) ? "vídeo enviado" : "foto enviada";
+      return "foto 1 do produto";
+    }
+    function abMidiaPinta() {
+      const box = document.getElementById("abMidiaBox"), p = abSel ? vtAchar(abSel) : null;
+      if (!p) { box.style.display = "none"; return; }
+      box.style.display = "block";
+      const fotos = [p["Imagem 1 (URL)"], p["Imagem 2 (URL)"], p["Imagem 3 (URL)"]].filter(Boolean);
+      const atual = abMidia === "AUTO" ? "foto:0" : abMidia;
+      const borda = k => `2px solid ${atual === k ? "var(--g)" : "transparent"}`;
+      const tile = k => `width:64px;height:64px;border-radius:10px;cursor:pointer;border:${borda(k)};background:#fff;object-fit:contain`;
+      let h = fotos.map((u, i) => `<img src="${abEsc(u)}" alt="Foto ${i + 1}" onclick="abMidiaEscolhe('foto:${i}')" style="${tile("foto:" + i)}">`).join("");
+      if (p["Vídeo (URL)"]) h += `<div onclick="abMidiaEscolhe('video:produto')" style="${tile("video:produto")};display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;text-align:center;color:#1a2332;background:#e8edf5">▶ Vídeo do produto</div>`;
+      if (abMidia.startsWith("url:")) {
+        const u = abMidia.slice(4);
+        h += abEhVideo(u) ? `<video src="${abEsc(u)}" muted loop autoplay playsinline style="${tile(abMidia)};object-fit:cover"></video>` : `<img src="${abEsc(u)}" alt="Foto enviada" style="${tile(abMidia)}">`;
+      }
+      document.getElementById("abMidiaOpts").innerHTML = h;
+    }
+    function abMidiaEscolhe(k) { abMidia = k; abPinta(); }
+    async function abEnviar(input) {
+      const file = input.files[0]; if (!file) return;
+      const st = document.getElementById("abUpStatus");
+      st.textContent = "⏳ Enviando...";
+      try { abMidia = "url:" + await uploadCloud(file); st.textContent = "✅ Enviado"; abPinta(); }
+      catch (e) { st.textContent = "❌ " + (e.message || "Erro no envio"); }
+      input.value = "";
     }
     function abBuscar(q) {
       const el = document.getElementById("abResultados");
@@ -5160,6 +5206,7 @@
     }
     function abEscolher(id) {
       abSel = String(id);
+      abMidia = abSel && abSel === abSalvo ? abMidiaSalva : "AUTO"; // produto novo começa na foto 1
       document.getElementById("abResultados").innerHTML = "";
       document.getElementById("abBusca").value = "";
       abPinta();
@@ -5198,7 +5245,7 @@
       const doCard = vtDests.filter(d => vtVigencia(d) === "no ar" && d["Tipo"] === "Produto" && vtAchar(d["Ref"]));
       if (doCard.length) return { fonte: "Destaque da Home", p: vtAchar(doCard[0]["Ref"]), mais: doCard.length - 1 };
       const esc = abSalvo && vtAchar(abSalvo);
-      if (esc && vtUsavel(esc)) return { fonte: "Escolhido por você", p: esc };
+      if (esc && vtUsavel(esc)) return { fonte: "Escolhido por você", p: esc, midia: abMidiaRotulo(abMidiaSalva) };
       const ok = abProds.filter(vtNaLoja).slice(0, 200).filter(vtUsavel);
       return { fonte: "Automático", p: ok.find(x => Number(x["Parcelas Máx"]) >= 10) || ok[0] };
     }
@@ -5210,7 +5257,7 @@
     function vtPinta() {
       const ef = vtAbrEfetiva();
       document.getElementById("vtAbertura").innerHTML = ef.p
-        ? `<div style="font-size:11px;font-weight:700;color:var(--muted);margin-bottom:8px">Na loja agora · origem: ${abEsc(ef.fonte)}${ef.mais ? ` (+${ef.mais} revezando)` : ""}</div><div style="display:flex;align-items:center;gap:10px">${abLinha(ef.p)}</div>`
+        ? `<div style="font-size:11px;font-weight:700;color:var(--muted);margin-bottom:8px">Na loja agora · origem: ${abEsc(ef.fonte)}${ef.mais ? ` (+${ef.mais} revezando)` : ""}${ef.midia ? " · " + abEsc(ef.midia) : ""}</div><div style="display:flex;align-items:center;gap:10px">${abLinha(ef.p)}</div>`
           + (ef.fonte === "Destaque da Home" ? `<div style="font-size:11px;color:var(--o);margin-top:8px">Este destaque passa na frente da escolha abaixo. Para outro produto aparecer, retire o destaque na seção 2.</div>` : "")
         : vtVazio("Nenhum produto disponível para o card.");
       // 2. destaques da home
@@ -5304,8 +5351,9 @@
       btn.disabled = true; btn.textContent = "Salvando...";
       try {
         const r = await apiGet("salvarConfigValor", { chave: "PRODUTO_ABERTURA", valor: abSel || "AUTO" });
-        if (r && r.ok) { abSalvo = abSel; abPinta(); vtPinta(); toast("Abertura da loja atualizada ✅"); }
-        else toast((r && r.error) || "Erro ao salvar", "err");
+        const m = r && r.ok ? await apiGet("salvarConfigValor", { chave: "ABERTURA_MIDIA", valor: abSel ? abMidia : "AUTO" }) : null;
+        if (r && r.ok && m && m.ok) { abSalvo = abSel; abMidiaSalva = abSel ? abMidia : "AUTO"; abMidia = abMidiaSalva; abPinta(); vtPinta(); toast("Abertura da loja atualizada ✅"); }
+        else toast((m && m.error) || (r && r.error) || "Erro ao salvar", "err");
       } catch (e) { toast("Erro de conexão", "err"); }
       btn.disabled = false; btn.textContent = "💾 Salvar";
     }
