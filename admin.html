@@ -3696,7 +3696,7 @@
           <span class="mais-ico">⭐</span>Destaque Home
         </button>
         <button class="mais-item" onclick="closeMaisSheet();goPage('abertura',document.getElementById('nav-mais'))">
-          <span class="mais-ico">📱</span>Produto da abertura
+          <span class="mais-ico">🏪</span>Vitrine da home
         </button>
       </div>
     </div>
@@ -3782,18 +3782,53 @@
     </div>
 
     <!-- DESTAQUES (G5.1) -->
-    <!-- 2026-11-14: produto do card da abertura da loja (chave PRODUTO_ABERTURA na aba Config) -->
+    <!-- 2026-11-14: Vitrine da home — o que a loja mostra na página inicial e como retirar/adicionar -->
     <div class="page" id="page-abertura">
-      <div style="font-family:var(--H);font-weight:800;font-size:17px;margin-bottom:8px">📱 Produto da abertura</div>
-      <div style="font-size:12px;color:var(--muted);margin-bottom:14px;line-height:1.5">É o produto que aparece primeiro na loja, no card grande que gira na abertura. Escolha um e salve. Se houver um Destaque da Home ativo do tipo Produto, ele passa na frente desta escolha.</div>
-      <div id="abAtual" style="background:var(--d2);border:1px solid var(--border);border-radius:14px;padding:14px;margin-bottom:14px"></div>
-      <div class="fg">
-        <label class="fl">Trocar por</label>
-        <input class="fi" id="abBusca" placeholder="Buscar produto por nome..." oninput="abBuscar(this.value)" autocomplete="off">
-        <div id="abResultados" style="max-height:260px;overflow:auto;margin-top:4px"></div>
+      <div style="font-family:var(--H);font-weight:800;font-size:17px;margin-bottom:6px">🏪 Vitrine da home</div>
+      <div style="font-size:12px;color:var(--muted);margin-bottom:14px;line-height:1.5">O que a loja mostra na página inicial, de onde vem cada coisa e como retirar ou adicionar. Mudanças em produto pedem a senha de admin (uma vez por sessão).</div>
+
+      <div style="background:var(--d2);border:1px solid var(--border);border-radius:14px;padding:14px;margin-bottom:14px">
+        <div style="font-family:var(--H);font-weight:800;font-size:14px">1. Card da abertura</div>
+        <div style="font-size:12px;color:var(--muted);margin:3px 0 10px;line-height:1.5">O produto grande que gira quando a loja abre. Ordem: Destaque da Home ativo, depois a sua escolha, depois o automático.</div>
+        <div id="vtAbertura" style="background:var(--d3);border-radius:12px;padding:12px;margin-bottom:12px"></div>
+        <div id="abAtual" style="border:1px dashed var(--border);border-radius:12px;padding:12px;margin-bottom:12px"></div>
+        <div class="fg">
+          <label class="fl">Trocar a escolha</label>
+          <input class="fi" id="abBusca" placeholder="Buscar produto por nome..." oninput="abBuscar(this.value)" autocomplete="off">
+          <div id="abResultados" style="max-height:260px;overflow:auto;margin-top:4px"></div>
+        </div>
+        <button class="savebtn" id="abSalvarBtn" style="width:100%;margin-top:8px" onclick="abSalvar()">💾 Salvar escolha</button>
+        <button class="addbtn" style="width:100%;margin-top:8px;background:var(--d3);color:var(--fg)" onclick="abEscolher('')">Retirar escolha (automático)</button>
       </div>
-      <button class="savebtn" id="abSalvarBtn" style="width:100%;margin-top:12px" onclick="abSalvar()">💾 Salvar</button>
-      <button class="addbtn" style="width:100%;margin-top:8px;background:var(--d3);color:var(--fg)" onclick="abEscolher('')">Voltar ao automático</button>
+
+      <div style="background:var(--d2);border:1px solid var(--border);border-radius:14px;padding:14px;margin-bottom:14px">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px"><div style="font-family:var(--H);font-weight:800;font-size:14px">2. Destaque da Home</div>
+          <button class="addbtn" style="font-size:12px;padding:6px 12px" onclick="vtNovoDest()">+ Adicionar</button></div>
+        <div style="font-size:12px;color:var(--muted);margin:3px 0 10px;line-height:1.5">Produto vai para o card da abertura. Vídeo e texto/banner aparecem no bloco abaixo da abertura (só o primeiro).</div>
+        <div id="vtDest"></div>
+      </div>
+
+      <div style="background:var(--d2);border:1px solid var(--border);border-radius:14px;padding:14px;margin-bottom:14px">
+        <div style="font-family:var(--H);font-weight:800;font-size:14px">3. Promoções</div>
+        <div style="font-size:12px;color:var(--muted);margin:3px 0 10px;line-height:1.5">Produtos com preço promocional. Aparecem com selo nos cards e na bolinha "Promoções" das Novidades (até 10).</div>
+        <div id="vtPromo"></div>
+        <input class="fi" id="vtBuscaPromo" placeholder="+ Adicionar: buscar produto..." oninput="vtBuscar('promo',this.value)" autocomplete="off" style="margin-top:8px">
+        <div id="vtResPromo" style="max-height:220px;overflow:auto;margin-top:4px"></div>
+      </div>
+
+      <div style="background:var(--d2);border:1px solid var(--border);border-radius:14px;padding:14px;margin-bottom:14px">
+        <div style="font-family:var(--H);font-weight:800;font-size:14px">4. Produtos em destaque</div>
+        <div style="font-size:12px;color:var(--muted);margin:3px 0 10px;line-height:1.5">Produtos marcados "Destaque? Sim". Aparecem com selo e na bolinha "Destaques" das Novidades (até 10).</div>
+        <div id="vtStar"></div>
+        <input class="fi" id="vtBuscaStar" placeholder="+ Adicionar: buscar produto..." oninput="vtBuscar('star',this.value)" autocomplete="off" style="margin-top:8px">
+        <div id="vtResStar" style="max-height:220px;overflow:auto;margin-top:4px"></div>
+      </div>
+
+      <div style="background:var(--d2);border:1px solid var(--border);border-radius:14px;padding:14px;margin-bottom:14px">
+        <div style="font-family:var(--H);font-weight:800;font-size:14px">5. Vitrine de celulares</div>
+        <div style="font-size:12px;color:var(--muted);margin:3px 0 10px;line-height:1.5">Automática: os 8 primeiros produtos da categoria Celular, na ordem da planilha. Para mudar, mude a ordem na planilha ou retire o produto do ar.</div>
+        <div id="vtCel"></div>
+      </div>
     </div>
 
     <div class="page" id="page-destaques">
@@ -5095,21 +5130,22 @@
         <div style="font-size:12px;color:var(--muted)">${abEsc(p["Categoria"] || "")} · ${fmt(Number(p["Preço Promo (R$)"]) > 0 && Number(p["Preço Promo (R$)"]) < Number(p["Preço (R$)"]) ? p["Preço Promo (R$)"] : p["Preço (R$)"])}</div></div>`;
     };
     async function loadAbertura() {
-      const box = document.getElementById("abAtual");
-      box.innerHTML = `<div style="font-size:12px;color:var(--muted)">Carregando...</div>`;
+      document.getElementById("abAtual").innerHTML = `<div style="font-size:12px;color:var(--muted)">Carregando...</div>`;
       try {
-        if (allProds.length) abProds = allProds;
-        else { const rp = await apiGet("getProdutos", { limit: 500 }); abProds = rp.produtos || []; }
-        const r = await apiGet("getConfig");
-        const v = String(((r && r.config) || {}).PRODUTO_ABERTURA || "").trim();
+        const [rp, rc, rcat, rd] = await Promise.all([apiGet("getProdutos", { verTodos: "1" }), apiGet("getConfig"),
+          apiGet("getCategorias").catch(() => null), apiGet("getDestaques").catch(() => null)]);
+        abProds = rp.produtos || [];
+        vtCats = (rcat && rcat.categorias) || [];
+        vtDests = (rd && rd.destaques) || [];
+        const v = String(((rc && rc.config) || {}).PRODUTO_ABERTURA || "").trim();
         abSel = abSalvo = v === "AUTO" ? "" : v;
       } catch (e) { toast("Erro ao carregar", "err"); }
-      abPinta();
+      abPinta(); vtPinta();
     }
     function abPinta() {
       const p = abSel ? abProds.find(x => String(x["ID"]) === abSel) : null;
       const pend = abSel !== abSalvo ? `<div style="font-size:11px;font-weight:700;color:var(--o);margin-top:8px">Ainda não salvo</div>` : "";
-      document.getElementById("abAtual").innerHTML = `<div style="font-size:11px;font-weight:700;color:var(--muted);margin-bottom:8px">${abSel === abSalvo ? "Na loja agora" : "Vai ficar assim"}</div>` + (
+      document.getElementById("abAtual").innerHTML = `<div style="font-size:11px;font-weight:700;color:var(--muted);margin-bottom:8px">${abSel === abSalvo ? "Escolha salva" : "Vai ficar assim"}</div>` + (
         !abSel ? `<div style="font-size:13px;font-weight:600">Automático</div><div style="font-size:12px;color:var(--muted);margin-top:2px">A loja escolhe o primeiro produto com 10 parcelas ou mais e com estoque.</div>`
         : p ? `<div style="display:flex;align-items:center;gap:10px">${abLinha(p)}</div>`
         : `<div style="font-size:13px;font-weight:600">Produto ${abEsc(abSel)}</div><div style="font-size:12px;color:var(--o);margin-top:2px">Não está entre os produtos ativos. A loja usa o automático até você escolher outro.</div>`) + pend;
@@ -5128,12 +5164,147 @@
       document.getElementById("abBusca").value = "";
       abPinta();
     }
+    // ── VITRINE DA HOME ── espelha o que a loja decide (index.html) e permite retirar/adicionar
+    let vtCats = [], vtDests = [], vtSenha = "", vtTodos = { promo: false, star: false };
+    // aaaa-mm-dd (campo date) a partir de dd/mm/aaaa, ISO ou Date do Sheets (fuso de São Paulo)
+    function destDataInput(v) {
+      const s = String(v == null ? "" : v).trim();
+      if (!s) return "";
+      if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+      const m = s.match(/^(\d{2})\/(\d{2})\/(\d{4})/);
+      if (m) return `${m[3]}-${m[2]}-${m[1]}`;
+      const d = new Date(s);
+      return isNaN(d) ? "" : new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(d);
+    }
+    const destDataBR = v => { const i = destDataInput(v); return i ? i.split("-").reverse().join("/") : "—"; };
+    const vtHoje = () => new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(new Date());
+    const vtPrecoPromo = p => Number(p["Preço Promo (R$)"] || 0), vtPrecoCheio = p => Number(p["Preço (R$)"] || 0);
+    const vtEmPromo = p => vtPrecoPromo(p) > 0 && vtPrecoPromo(p) < vtPrecoCheio(p);
+    const vtPreco = p => vtEmPromo(p) ? vtPrecoPromo(p) : vtPrecoCheio(p);
+    const vtEstrela = p => String(p["Destaque?"] || "").trim().toLowerCase() === "sim";
+    const vtEsgotado = p => { const e = p["Estoque"]; return e !== null && e !== undefined && e !== "" && Number(e) === 0; };
+    const vtNaLoja = p => String(p["Status"] || "Ativo").toLowerCase() === "ativo" && ["", "sim"].includes(String(p["Publicado"] || "").trim().toLowerCase());
+    const vtCatOk = n => !vtCats.length || vtCats.some(c => c.Nome === n && String(c.Status || "Ativo").toLowerCase() === "ativo");
+    const vtUsavel = p => !!p && !vtEsgotado(p) && vtPreco(p) > 0 && !!p["Imagem 1 (URL)"] && vtCatOk(p["Categoria"]);
+    const vtAchar = id => abProds.find(p => String(p["ID"]) === String(id));
+    function vtVigencia(d) {
+      if (String(d["Ativo"] || "").trim().toLowerCase() !== "sim") return "inativo";
+      const h = vtHoje(), i = destDataInput(d["Data_Inicio"]), f = destDataInput(d["Data_Fim"]);
+      if (i && h < i) return "agendado";
+      if (f && h > f) return "encerrado";
+      return "no ar";
+    }
+    function vtAbrEfetiva() {
+      const doCard = vtDests.filter(d => vtVigencia(d) === "no ar" && d["Tipo"] === "Produto" && vtAchar(d["Ref"]));
+      if (doCard.length) return { fonte: "Destaque da Home", p: vtAchar(doCard[0]["Ref"]), mais: doCard.length - 1 };
+      const esc = abSalvo && vtAchar(abSalvo);
+      if (esc && vtUsavel(esc)) return { fonte: "Escolhido por você", p: esc };
+      const ok = abProds.filter(vtNaLoja).slice(0, 200).filter(vtUsavel);
+      return { fonte: "Automático", p: ok.find(x => Number(x["Parcelas Máx"]) >= 10) || ok[0] };
+    }
+    const vtBotao = (txt, fn, cor) => `<button class="cat-btn" style="${cor ? "color:" + cor : ""}" onclick="${fn}">${txt}</button>`;
+    const vtVazio = t => `<div style="font-size:12px;color:var(--muted);padding:4px 0">${t}</div>`;
+    const vtLinhaProd = (p, extra, botoes) => `<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-top:1px solid var(--border)">
+      <div style="display:flex;align-items:center;gap:10px;flex:1;min-width:0">${abLinha(p)}</div>
+      <div style="text-align:right;flex-shrink:0">${extra ? `<div style="font-size:11px;color:var(--c);margin-bottom:4px">${extra}</div>` : ""}${botoes}</div></div>`;
+    function vtPinta() {
+      const ef = vtAbrEfetiva();
+      document.getElementById("vtAbertura").innerHTML = ef.p
+        ? `<div style="font-size:11px;font-weight:700;color:var(--muted);margin-bottom:8px">Na loja agora · origem: ${abEsc(ef.fonte)}${ef.mais ? ` (+${ef.mais} revezando)` : ""}</div><div style="display:flex;align-items:center;gap:10px">${abLinha(ef.p)}</div>`
+          + (ef.fonte === "Destaque da Home" ? `<div style="font-size:11px;color:var(--o);margin-top:8px">Este destaque passa na frente da escolha abaixo. Para outro produto aparecer, retire o destaque na seção 2.</div>` : "")
+        : vtVazio("Nenhum produto disponível para o card.");
+      // 2. destaques da home
+      const rot = { "no ar": ["No ar", "var(--g)"], agendado: ["Agendado", "var(--c)"], encerrado: ["Encerrado", "var(--muted)"], inativo: ["Retirado", "var(--muted)"] };
+      document.getElementById("vtDest").innerHTML = vtDests.length ? vtDests.map(d => {
+        const vg = vtVigencia(d), tipo = d["Tipo"] || "—", p = tipo === "Produto" ? vtAchar(d["Ref"]) : null;
+        const nome = tipo === "Produto" ? (p ? abNome(p) : "Produto " + d["Ref"]) : tipo === "Video" ? "Vídeo do YouTube" : "Texto / banner";
+        const onde = tipo === "Produto" ? "card da abertura" : "bloco abaixo da abertura";
+        const per = (d["Data_Inicio"] || d["Data_Fim"]) ? `${destDataBR(d["Data_Inicio"])} até ${destDataBR(d["Data_Fim"])}` : "sem período";
+        const id = abEsc(d["ID"]);
+        return `<div style="padding:8px 0;border-top:1px solid var(--border)"><div style="display:flex;justify-content:space-between;gap:8px;align-items:center">
+          <div style="min-width:0"><div style="font-size:13px;font-weight:600">${abEsc(nome)}${d["Texto"] ? ` · “${abEsc(d["Texto"])}”` : ""}</div>
+          <div style="font-size:11px;color:var(--muted)">${abEsc(tipo)} · ${onde} · ${per}</div></div>
+          <span style="font-size:11px;font-weight:700;color:${rot[vg][1]};flex-shrink:0">${rot[vg][0]}</span></div>
+          <div class="cat-actions" style="margin-top:6px">${vtBotao(vg === "inativo" ? "Reativar" : "Retirar", `vtToggleDest('${id}')`, vg === "inativo" ? "" : "var(--r)")}${vtBotao("✏️ Editar", `vtEditarDest('${id}')`)}</div></div>`;
+      }).join("") : vtVazio("Nenhum destaque cadastrado. Toque em + Adicionar.");
+      // 3 e 4. promoções e destaques de produto
+      const loja = abProds.filter(vtNaLoja);
+      const promos = loja.filter(vtEmPromo), estrelas = loja.filter(vtEstrela);
+      const corta = (l, k) => vtTodos[k] ? l : l.slice(0, 10);
+      const mais = (l, k) => l.length > 10 ? `<button class="cat-btn" style="margin-top:8px;width:100%" onclick="vtTodos.${k}=!vtTodos.${k};vtPinta()">${vtTodos[k] ? "Mostrar só os 10 primeiros" : `Mostrar todos (${l.length})`}</button>` : "";
+      document.getElementById("vtPromo").innerHTML = promos.length ? corta(promos, "promo").map(p => vtLinhaProd(p, `${fmt(vtPrecoCheio(p))} → ${fmt(vtPrecoPromo(p))}`, vtBotao("Retirar", `vtRetirar('promo','${abEsc(p["ID"])}')`, "var(--r)"))).join("") + mais(promos, "promo") : vtVazio("Nenhum produto em promoção.");
+      document.getElementById("vtStar").innerHTML = estrelas.length ? corta(estrelas, "star").map(p => vtLinhaProd(p, "", vtBotao("Retirar", `vtRetirar('star','${abEsc(p["ID"])}')`, "var(--r)"))).join("") + mais(estrelas, "star") : vtVazio("Nenhum produto em destaque.");
+      // 5. celulares
+      const cels = loja.slice(0, 200).filter(vtUsavel).filter(p => p["Categoria"] === "Celular").slice(0, 8);
+      document.getElementById("vtCel").innerHTML = cels.length ? cels.map(p => `<div style="display:flex;align-items:center;gap:10px;padding:6px 0;border-top:1px solid var(--border)">${abLinha(p)}</div>`).join("") : vtVazio("Nenhum celular disponível.");
+    }
+    async function vtBatch(item) {
+      if (!vtSenha) { const s = prompt("Confirme a SENHA DE ADMIN para alterar o produto:"); if (s === null) return false; vtSenha = s; }
+      try {
+        const r = await apiPost("atualizarProdutosBatch", { itens: [item], adminSenha: vtSenha });
+        if (r && r.ok && r.updated) return true;
+        if (r && /autorizado/i.test(r.erro || "")) vtSenha = "";
+        toast((r && (r.erro || r.error)) || "Produto não encontrado", "err");
+      } catch (e) { toast("Erro de conexão", "err"); }
+      return false;
+    }
+    function vtAplicaLocal(id, campo, valor) {
+      [abProds, allProds].forEach(l => l.forEach(p => { if (String(p["ID"]) === String(id)) p[campo] = valor; }));
+    }
+    async function vtRetirar(tipo, id) {
+      const campo = tipo === "promo" ? "Preço Promo (R$)" : "Destaque?", valor = tipo === "promo" ? 0 : "Não";
+      if (!(await vtBatch({ id, [campo]: valor }))) return;
+      vtAplicaLocal(id, campo, valor); vtPinta();
+      toast(tipo === "promo" ? "Promoção retirada ✅" : "Destaque retirado ✅");
+    }
+    function vtBuscar(tipo, q) {
+      const el = document.getElementById(tipo === "promo" ? "vtResPromo" : "vtResStar");
+      q = q.trim().toLowerCase();
+      if (!q) { el.innerHTML = ""; return; }
+      const ja = tipo === "promo" ? vtEmPromo : vtEstrela;
+      const achados = abProds.filter(p => vtNaLoja(p) && !ja(p) && abNome(p).toLowerCase().includes(q)).slice(0, 8);
+      el.innerHTML = achados.length ? achados.map(p => `<div style="padding:7px 8px;cursor:pointer;border-radius:8px;display:flex;align-items:center;gap:10px" onmouseover="this.style.background='var(--d3)'" onmouseout="this.style.background=''" onclick="vtAdicionar('${tipo}','${abEsc(p["ID"])}')">${abLinha(p)}</div>`).join("")
+        : vtVazio("Nenhum produto ativo com esse nome (ou já está na lista).");
+    }
+    async function vtAdicionar(tipo, id) {
+      const p = vtAchar(id); if (!p) return;
+      let campo = "Destaque?", valor = "Sim";
+      if (tipo === "promo") {
+        const cheio = vtPrecoCheio(p);
+        const r = prompt(`Preço promocional de "${abNome(p)}" (preço normal ${fmt(cheio)}):`);
+        if (r === null) return;
+        valor = Number(String(r).replace(/\./g, "").replace(",", "."));
+        if (!(valor > 0) || valor >= cheio) { toast("O preço promocional precisa ser menor que " + fmt(cheio), "err"); return; }
+        campo = "Preço Promo (R$)";
+      }
+      if (!(await vtBatch({ id, [campo]: valor }))) return;
+      vtAplicaLocal(id, campo, valor);
+      document.getElementById(tipo === "promo" ? "vtBuscaPromo" : "vtBuscaStar").value = "";
+      document.getElementById(tipo === "promo" ? "vtResPromo" : "vtResStar").innerHTML = "";
+      vtPinta(); toast(tipo === "promo" ? "Promoção adicionada ✅" : "Produto em destaque ✅");
+    }
+    async function vtToggleDest(id) {
+      const d = vtDests.find(x => String(x["ID"]) === String(id)); if (!d) return;
+      const novo = String(d["Ativo"] || "").trim().toLowerCase() === "sim" ? "Não" : "Sim";
+      try {
+        // reenvia todos os campos (o backend regrava a linha inteira); datas em aaaa-mm-dd
+        const r = await apiGet("salvarDestaque", { id: d["ID"], tipo: d["Tipo"] || "", ref: d["Ref"] || "", texto: d["Texto"] || "",
+          dataInicio: destDataInput(d["Data_Inicio"]), dataFim: destDataInput(d["Data_Fim"]), ativo: novo,
+          imagemIdx: d["ImagemIdx"] == null ? "" : d["ImagemIdx"], mediaCustom: d["MediaCustom"] || "" });
+        if (r && r.ok) { d["Ativo"] = novo; vtPinta(); toast(novo === "Sim" ? "Destaque reativado ✅" : "Destaque retirado ✅"); }
+        else toast((r && r.error) || "Erro ao salvar", "err");
+      } catch (e) { toast("Erro de conexão", "err"); }
+    }
+    function vtIrDestaques() { allDestaques = vtDests; if (!allProds.length) allProds = abProds; goPage("destaques", document.getElementById("nav-mais")); }
+    function vtNovoDest() { vtIrDestaques(); openDestaqueForm(); }
+    function vtEditarDest(id) { vtIrDestaques(); openDestaqueForm(id); }
+
     async function abSalvar() {
       const btn = document.getElementById("abSalvarBtn");
       btn.disabled = true; btn.textContent = "Salvando...";
       try {
         const r = await apiGet("salvarConfigValor", { chave: "PRODUTO_ABERTURA", valor: abSel || "AUTO" });
-        if (r && r.ok) { abSalvo = abSel; abPinta(); toast("Abertura da loja atualizada ✅"); }
+        if (r && r.ok) { abSalvo = abSel; abPinta(); vtPinta(); toast("Abertura da loja atualizada ✅"); }
         else toast((r && r.error) || "Erro ao salvar", "err");
       } catch (e) { toast("Erro de conexão", "err"); }
       btn.disabled = false; btn.textContent = "💾 Salvar";
@@ -10848,7 +11019,7 @@
         const tipo = d["Tipo"] || "—";
         const ico = tipo === "Produto" ? "🛒" : tipo === "Video" ? "🎬" : "📢";
         const refTxt = tipo === "Produto" ? _destNomeProduto(d["Ref"]) : (tipo === "Video" ? d["Ref"] : "");
-        const periodo = (d["Data_Inicio"] || d["Data_Fim"]) ? `${d["Data_Inicio"] || "—"} até ${d["Data_Fim"] || "—"}` : "Sempre ativo (sem período)";
+        const periodo = (d["Data_Inicio"] || d["Data_Fim"]) ? `${destDataBR(d["Data_Inicio"])} até ${destDataBR(d["Data_Fim"])}` : "Sempre ativo (sem período)";
         const cliques = _destaquesCliques[String(d["ID"])] || 0;
         return `<div class="cat-card" style="flex-direction:column;align-items:flex-start">
           <div style="display:flex;align-items:center;justify-content:space-between;width:100%">
@@ -10993,8 +11164,8 @@
       document.getElementById("fDestTipo").value = d ? (d["Tipo"] || "Produto") : "Produto";
       document.getElementById("fDestAtivo").value = d ? (String(d["Ativo"]).toLowerCase() === "sim" ? "Sim" : "Não") : "Sim";
       document.getElementById("fDestTexto").value = d ? d["Texto"] || "" : "";
-      document.getElementById("fDestDataIni").value = "";
-      document.getElementById("fDestDataFim").value = "";
+      document.getElementById("fDestDataIni").value = d ? destDataInput(d["Data_Inicio"]) : "";
+      document.getElementById("fDestDataFim").value = d ? destDataInput(d["Data_Fim"]) : "";
       document.getElementById("fDestRef").value = d && d["Tipo"] === "Produto" ? d["Ref"] || "" : "";
       document.getElementById("fDestRefSelecionado").textContent = d && d["Tipo"] === "Produto" && d["Ref"] ? "Selecionado: " + _destNomeProduto(d["Ref"]) : "";
       document.getElementById("fDestRefBusca").value = "";
